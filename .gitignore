@@ -1,6 +1,7 @@
 # Build outputs
 bin/
 obj/
+.tmp/
 
 # VS files
 .vs/
@@ -12,3 +13,9 @@ obj/
 # OS
 .DS_Store
 Thumbs.db
+
+# Local dotnet/MSBuild scratch
+scratch/MSBuildTemp/
+scratch/NuGetScratch/
+scratch/Microsoft.NET.Workload_*.log
+scratch/*-*-*-*-*/
