@@ -28,6 +28,9 @@ namespace FormationManager.Patches
             if (settings == null || !settings.ModEnabled)
                 return;
 
+            if (MissionGuards.IsNavalMission(__instance))
+                return;
+
             if (!isPlayerSide)
                 return;
 

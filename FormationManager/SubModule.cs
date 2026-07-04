@@ -5,6 +5,7 @@ using TaleWorlds.MountAndBlade;
 using TaleWorlds.MountAndBlade.ComponentInterfaces;
 using Bannerlord.UIExtenderEx;
 using FormationManager.Data;
+using FormationManager.Patches;
 using System.Linq;
 
 namespace FormationManager
@@ -121,6 +122,12 @@ namespace FormationManager
         {
             base.OnBeforeMissionBehaviorInitialize(mission);
             Logger.Log($"[SubModule] OnBeforeMissionBehaviorInitialize fired. Mission={mission?.GetType()?.Name}");
+            if (MissionGuards.IsNavalMission(mission))
+            {
+                Logger.Log("[SubModule] Naval mission detected. Skipping FormationManager mission behavior.");
+                return;
+            }
+            mission?.AddMissionBehavior(new MissionTroopReassignmentBehavior());
         }
 
         public override void OnGameEnd(Game game)

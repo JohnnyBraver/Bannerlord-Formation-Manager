@@ -27,6 +27,9 @@ namespace FormationManager.Patches
             if (settings == null || !settings.ModEnabled)
                 return;
 
+            if (MissionGuards.IsCurrentMissionNaval())
+                return;
+
             if (formation == null)
                 return;
 
@@ -50,6 +53,9 @@ namespace FormationManager.Patches
         {
             var settings = Settings.Instance;
             if (settings == null || !settings.ModEnabled)
+                return;
+
+            if (MissionGuards.IsCurrentMissionNaval())
                 return;
 
             if (formation == null)
@@ -185,6 +191,9 @@ namespace FormationManager.Patches
             if (settings == null || !settings.ModEnabled)
                 return;
 
+            if (MissionGuards.IsCurrentMissionNaval())
+                return;
+
             Logger.Log("[SetInitialHeroFormationsPatch] Postfix: Distributing card weights...");
             WeightDistributor.DistributeWeights(__instance);
         }
@@ -205,6 +214,9 @@ namespace FormationManager.Patches
         {
             var settings = Settings.Instance;
             if (settings == null || !settings.ModEnabled)
+                return;
+
+            if (MissionGuards.IsCurrentMissionNaval())
                 return;
 
             Logger.Log("[OrderOfBattleVMInitializePatch] Postfix: Enforcing custom assignments on OOB cards and preview agents...");

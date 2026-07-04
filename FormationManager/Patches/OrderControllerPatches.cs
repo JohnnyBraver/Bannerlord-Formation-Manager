@@ -14,6 +14,9 @@ namespace FormationManager.Patches
             if (settings == null || !settings.ModEnabled)
                 return true;
 
+            if (MissionGuards.IsCurrentMissionNaval())
+                return true;
+
             if (team != null && team.IsPlayerTeam)
             {
                 if (FormationAssignmentStore.HasAnyAssignments)
