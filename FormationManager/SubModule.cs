@@ -122,9 +122,9 @@ namespace FormationManager
         {
             base.OnBeforeMissionBehaviorInitialize(mission);
             Logger.Log($"[SubModule] OnBeforeMissionBehaviorInitialize fired. Mission={mission?.GetType()?.Name}");
-            if (MissionGuards.IsNavalMission(mission))
+            if (!MissionGuards.CanAttachMissionBehavior(mission))
             {
-                Logger.Log("[SubModule] Naval mission detected. Skipping FormationManager mission behavior.");
+                Logger.Log("[SubModule] Mission is not on the supported regular-battle whitelist. Skipping FormationManager mission behavior.");
                 return;
             }
             mission?.AddMissionBehavior(new MissionTroopReassignmentBehavior());

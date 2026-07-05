@@ -14,12 +14,12 @@ namespace BannerlordInspector
         private static int Main(string[] args)
         {
             var options = Options.Parse(args);
-            if (string.IsNullOrWhiteSpace(options.TypeName))
+            if (string.IsNullOrWhiteSpace(options.TypeName) && string.IsNullOrWhiteSpace(options.TypeFilter))
             {
                 Console.Error.WriteLine("Usage: BannerlordInspector --type <Full.Type.Name> [--member <name>] [--assembly <dll-or-name>] [--list]");
+                Console.Error.WriteLine("       BannerlordInspector --list-types <filter> [--assembly <dll-or-name>]");
                 return 2;
             }
-            string typeName = options.TypeName!;
 
             string gameBin = Environment.GetEnvironmentVariable("BANNERLORD_GAME_BIN")
                 ?? @"E:\SteamLibrary\steamapps\common\Mount & Blade II Bannerlord\bin\Win64_Shipping_Client";
@@ -33,6 +33,13 @@ namespace BannerlordInspector
             AppDomain.CurrentDomain.AssemblyResolve += (_, eventArgs) => ResolveAssembly(gameBin, eventArgs.Name);
 
             var assemblies = LoadAssemblies(gameBin, options.AssemblyName).ToList();
+            if (!string.IsNullOrWhiteSpace(options.TypeFilter))
+            {
+                PrintMatchingTypes(assemblies, options.TypeFilter!);
+                return 0;
+            }
+
+            string typeName = options.TypeName!;
             var type = FindType(assemblies, typeName);
             if (type == null)
             {
@@ -42,6 +49,31 @@ namespace BannerlordInspector
 
             PrintType(type, options);
             return 0;
+        }
+
+        private static void PrintMatchingTypes(IEnumerable<Assembly> assemblies, string typeFilter)
+        {
+            foreach (var assembly in assemblies.OrderBy(a => a.GetName().Name))
+            {
+                foreach (var type in GetLoadableTypes(assembly)
+                    .Where(type => type.FullName?.IndexOf(typeFilter, StringComparison.OrdinalIgnoreCase) >= 0)
+                    .OrderBy(type => type.FullName))
+                {
+                    Console.WriteLine($"{assembly.GetName().Name}: {type.FullName}");
+                }
+            }
+        }
+
+        private static IEnumerable<Type> GetLoadableTypes(Assembly assembly)
+        {
+            try
+            {
+                return assembly.GetTypes();
+            }
+            catch (ReflectionTypeLoadException ex)
+            {
+                return ex.Types.Where(type => type != null)!;
+            }
         }
 
         private static Assembly? ResolveAssembly(string gameBin, string assemblyName)
@@ -168,6 +200,7 @@ namespace BannerlordInspector
             public string? TypeName { get; private set; }
             public string? MemberName { get; private set; }
             public string? AssemblyName { get; private set; }
+            public string? TypeFilter { get; private set; }
             public bool List { get; private set; }
 
             public static Options Parse(string[] args)
@@ -180,6 +213,8 @@ namespace BannerlordInspector
                         options.TypeName = args[++i];
                     else if (arg == "--member" && i + 1 < args.Length)
                         options.MemberName = args[++i];
+                    else if (arg == "--list-types" && i + 1 < args.Length)
+                        options.TypeFilter = args[++i];
                     else if (arg == "--assembly" && i + 1 < args.Length)
                         options.AssemblyName = args[++i];
                     else if (arg == "--list")

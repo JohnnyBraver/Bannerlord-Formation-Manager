@@ -1,9 +1,9 @@
 param(
-    [Parameter(Mandatory = $true)]
-    [string]$Type,
+    [string]$Type = "",
 
     [string]$Member = "",
     [string]$Assembly = "",
+    [string]$ListTypes = "",
     [switch]$List
 )
 
@@ -63,7 +63,17 @@ if ($LASTEXITCODE -ne 0) {
     exit $LASTEXITCODE
 }
 
-$args = @("--type", $Type)
+if ([string]::IsNullOrWhiteSpace($Type) -and [string]::IsNullOrWhiteSpace($ListTypes)) {
+    Write-Error "Pass either -Type <Full.Type.Name> or -ListTypes <filter>."
+    exit 2
+}
+
+$args = @()
+if (-not [string]::IsNullOrWhiteSpace($ListTypes)) {
+    $args += @("--list-types", $ListTypes)
+} else {
+    $args += @("--type", $Type)
+}
 if (-not [string]::IsNullOrWhiteSpace($Member)) {
     $args += @("--member", $Member)
 }

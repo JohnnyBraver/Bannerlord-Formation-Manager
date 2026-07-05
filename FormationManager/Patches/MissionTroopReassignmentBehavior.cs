@@ -14,7 +14,7 @@ namespace FormationManager.Patches
 
         public override void OnMissionTick(float dt)
         {
-            if (MissionGuards.IsCurrentMissionNaval())
+            if (!MissionGuards.IsCurrentMissionSupported())
                 return;
 
             _elapsedSinceScan += dt;
@@ -27,7 +27,7 @@ namespace FormationManager.Patches
 
         public override void OnAgentDismount(Agent agent)
         {
-            if (MissionGuards.IsCurrentMissionNaval())
+            if (!MissionGuards.IsCurrentMissionSupported())
                 return;
 
             ReassignAgent(agent, "dismount");
@@ -35,7 +35,7 @@ namespace FormationManager.Patches
 
         public override void OnAgentMount(Agent agent)
         {
-            if (MissionGuards.IsCurrentMissionNaval())
+            if (!MissionGuards.IsCurrentMissionSupported())
                 return;
 
             ReassignAgent(agent, "mount");

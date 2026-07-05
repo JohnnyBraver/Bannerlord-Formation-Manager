@@ -14,7 +14,7 @@ namespace FormationManager.Patches
             if (settings == null || !settings.ModEnabled)
                 return true;
 
-            if (MissionGuards.IsCurrentMissionNaval())
+            if (!MissionGuards.IsCurrentMissionSupported())
                 return true;
 
             if (team != null && team.IsPlayerTeam)

@@ -1,17 +1,52 @@
 using TaleWorlds.MountAndBlade;
+using TaleWorlds.MountAndBlade.Missions.Handlers;
+using TaleWorlds.Core;
 
 namespace FormationManager.Patches
 {
     internal static class MissionGuards
     {
-        public static bool IsNavalMission(Mission? mission)
+        public static bool CanAttachMissionBehavior(Mission? mission)
         {
-            return mission != null && (mission.IsNavalBattle || mission.IsNavalRaidBattle);
+            if (mission == null)
+                return false;
+
+            return mission.CombatType == Mission.MissionCombatType.Combat
+                && IsBattleOrDeploymentStartup(mission.Mode);
         }
 
-        public static bool IsCurrentMissionNaval()
+        public static bool IsSupportedRegularBattleMission(Mission? mission)
         {
-            return IsNavalMission(Mission.Current);
+            if (mission == null)
+                return false;
+
+            return mission.CombatType == Mission.MissionCombatType.Combat
+                && IsBattleOrDeployment(mission.Mode)
+                && mission.PlayerTeam != null
+                && HasSupportedRegularBattleBehavior(mission);
+        }
+
+        public static bool IsCurrentMissionSupported()
+        {
+            return IsSupportedRegularBattleMission(Mission.Current);
+        }
+
+        private static bool IsBattleOrDeploymentStartup(MissionMode mode)
+        {
+            return mode == MissionMode.StartUp
+                || mode == MissionMode.Deployment
+                || mode == MissionMode.Battle;
+        }
+
+        private static bool IsBattleOrDeployment(MissionMode mode)
+        {
+            return mode == MissionMode.Deployment
+                || mode == MissionMode.Battle;
+        }
+
+        private static bool HasSupportedRegularBattleBehavior(Mission mission)
+        {
+            return mission.HasMissionBehavior<BattleDeploymentHandler>();
         }
     }
 }

@@ -1,5 +1,13 @@
 # Changelog - Formation Manager
 
+## [v0.2.1] - 2026-07-05
+
+### Changed
+- **Regular Battle Whitelist**: Limited Formation Manager's custom assignment logic to regular battle missions with the vanilla battle deployment handler. Siege, naval, and unknown mission types now stay on vanilla formation behavior.
+
+### Fixed
+- **DLC-Safe Mission Guard**: Removed direct naval mission property checks so the mod does not require DLC-only mission APIs while deciding whether to run custom formation logic.
+
 ## [v0.2.0] - 2026-07-04
 
 ### Added
