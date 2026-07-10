@@ -172,5 +172,13 @@ namespace FormationManager
             Order = 6)]
         [SettingPropertyGroup("Mid-Battle Reassignment")]
         public bool BacklineReassignmentEnabled { get; set; } = false;
+
+        [SettingPropertyBool(
+            "Prioritize Weights in Small Stacks",
+            RequireRestart = false,
+            HintText = "When there are too few troops to satisfy every custom target, distribute by weight first. Disabled by default: give one troop to each active formation from I to VIII before distributing the remainder.",
+            Order = 0)]
+        [SettingPropertyGroup("Multi-Formation Splits")]
+        public bool PrioritizeWeightsInSmallStacks { get; set; } = false;
     }
 }
