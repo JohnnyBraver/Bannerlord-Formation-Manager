@@ -18,6 +18,7 @@ namespace FormationManager.Patches
         private readonly int[] _formationCounts = new int[8];
         private readonly Dictionary<int, int> _agentFormationIndices = new();
         private readonly Dictionary<string, Dictionary<int, int>> _splitTargetCounts = new();
+        private readonly Dictionary<string, Dictionary<int, int>> _weightedTargetCounts = new();
 
         public int GetFormationCount(int formationIndex)
             => formationIndex >= 0 && formationIndex < _formationCounts.Length ? _formationCounts[formationIndex] : 0;
@@ -78,10 +79,40 @@ namespace FormationManager.Patches
 
         private void AddStack(BasicCharacterObject character, int troopCount, List<Agent>? agents, Settings? settings)
         {
-            int[] targets = FormationAssignmentResolver.GetFormationIndices(character, settings);
-            if (troopCount <= 0 || targets.Length == 0)
+            if (troopCount <= 0)
                 return;
 
+            Dictionary<int, int> allocatedCounts;
+            if (FormationAssignmentResolver.TryGetEvenSplitTargets(character, out int[] evenTargets))
+                allocatedCounts = AllocateEvenSplit(evenTargets, troopCount);
+            else if (FormationAssignmentResolver.TryGetWeightedCustomSurplus(character, troopCount, out var targets, out var weights, out int surplus))
+                allocatedCounts = AllocateWeightedCustomSplit(
+                    targets,
+                    weights,
+                    surplus,
+                    targets.Count == 0 && !(settings?.PrioritizeWeightsInSmallStacks ?? false));
+            else
+                allocatedCounts = FormationAssignmentResolver.GetAllocatedFormationCounts(character, troopCount, settings);
+
+            if (allocatedCounts.Count == 0)
+                return;
+
+            foreach (var allocation in allocatedCounts)
+                _formationCounts[allocation.Key] += allocation.Value;
+
+            if (agents == null)
+                return;
+
+            int agentOffset = 0;
+            foreach (var allocation in allocatedCounts.OrderBy(pair => pair.Key))
+            {
+                for (int i = 0; i < allocation.Value && agentOffset < agents.Count; i++)
+                    _agentFormationIndices[agents[agentOffset++].Index] = allocation.Key;
+            }
+        }
+
+        private Dictionary<int, int> AllocateEvenSplit(int[] targets, int troopCount)
+        {
             var allocatedCounts = new Dictionary<int, int>();
             string splitKey = string.Join(",", targets.OrderBy(index => index));
             if (!_splitTargetCounts.TryGetValue(splitKey, out var totalsForThisSplit))
@@ -93,7 +124,6 @@ namespace FormationManager.Patches
             int countPerTarget = troopCount / targets.Length;
             foreach (int target in targets)
             {
-                _formationCounts[target] += countPerTarget;
                 totalsForThisSplit[target] += countPerTarget;
                 allocatedCounts[target] = countPerTarget;
             }
@@ -105,21 +135,70 @@ namespace FormationManager.Patches
                     .OrderBy(index => totalsForThisSplit[index])
                     .ThenBy(index => index)
                     .First();
-                _formationCounts[target]++;
                 totalsForThisSplit[target]++;
                 allocatedCounts[target]++;
             }
 
-            if (agents == null)
-                return;
+            return allocatedCounts;
+        }
 
-            int agentOffset = 0;
-            foreach (int target in targets)
+        private Dictionary<int, int> AllocateWeightedCustomSplit(
+            IReadOnlyDictionary<int, int> targets,
+            IReadOnlyDictionary<int, int> weights,
+            int surplus,
+            bool applyMinimums)
+        {
+            var allocatedCounts = targets.ToDictionary(pair => pair.Key, pair => pair.Value);
+            if (applyMinimums)
             {
-                int assignedCount = allocatedCounts[target];
-                for (int i = 0; i < assignedCount && agentOffset < agents.Count; i++)
-                    _agentFormationIndices[agents[agentOffset++].Index] = target;
+                foreach (int index in weights.Keys.OrderBy(index => index))
+                {
+                    if (surplus == 0)
+                        return allocatedCounts;
+                    allocatedCounts[index] = allocatedCounts.TryGetValue(index, out int current) ? current + 1 : 1;
+                    surplus--;
+                }
             }
+
+            if (surplus == 0)
+                return allocatedCounts;
+
+            string splitKey = string.Join(",", weights.OrderBy(pair => pair.Key).Select(pair => $"{pair.Key}:{pair.Value}"));
+            if (!_weightedTargetCounts.TryGetValue(splitKey, out var totalsForThisSplit))
+            {
+                totalsForThisSplit = weights.Keys.ToDictionary(index => index, _ => 0);
+                _weightedTargetCounts.Add(splitKey, totalsForThisSplit);
+            }
+
+            int totalWeight = weights.Values.Sum();
+            int allocated = 0;
+            var remainders = new Dictionary<int, int>();
+            foreach (var pair in weights)
+            {
+                int numerator = surplus * pair.Value;
+                int count = numerator / totalWeight;
+                allocatedCounts[pair.Key] = allocatedCounts.TryGetValue(pair.Key, out int current) ? current + count : count;
+                totalsForThisSplit[pair.Key] += count;
+                allocated += count;
+                remainders[pair.Key] = numerator % totalWeight;
+            }
+
+            while (allocated < surplus)
+            {
+                int target = weights.Keys
+                    .OrderByDescending(index => remainders[index])
+                    .ThenBy(index => totalsForThisSplit[index])
+                    .ThenBy(index => index)
+                    .First();
+                allocatedCounts[target] = allocatedCounts.TryGetValue(target, out int current) ? current + 1 : 1;
+                totalsForThisSplit[target]++;
+                // Do not select the same largest-remainder slot twice unless all
+                // candidates have been considered for this stack.
+                remainders[target] = -1;
+                allocated++;
+            }
+
+            return allocatedCounts;
         }
     }
 }
