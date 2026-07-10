@@ -20,6 +20,94 @@ namespace FormationManager
         public bool ModEnabled { get; set; } = true;
 
         [SettingPropertyBool(
+            "Enable Troop Role Defaults",
+            RequireRestart = false,
+            HintText = "Use role-based troop classification to choose initial formation slots. Explicit troop assignments always take priority, and OOB changes remain editable for the current battle.",
+            Order = 0)]
+        [SettingPropertyGroup("Troop Role Defaults")]
+        public bool UsePartyManagerRoleDefaults { get; set; } = true;
+
+        [SettingPropertyInteger(
+            "Frontline Infantry Formation",
+            1, 8,
+            "0",
+            RequireRestart = false,
+            HintText = "Default slot for shield infantry and unclassified foot troops.",
+            Order = 1)]
+        [SettingPropertyGroup("Troop Role Defaults")]
+        public int FrontlineInfantryFormation { get; set; } = 1;
+
+        [SettingPropertyInteger(
+            "Shock Infantry Formation",
+            1, 8,
+            "0",
+            RequireRestart = false,
+            HintText = "Default slot for two-handed and offensive-polearm infantry.",
+            Order = 2)]
+        [SettingPropertyGroup("Troop Role Defaults")]
+        public int ShockInfantryFormation { get; set; } = 1;
+
+        [SettingPropertyInteger(
+            "Pike Infantry Formation",
+            1, 8,
+            "0",
+            RequireRestart = false,
+            HintText = "Default slot for anti-cavalry pike infantry.",
+            Order = 3)]
+        [SettingPropertyGroup("Troop Role Defaults")]
+        public int PikeInfantryFormation { get; set; } = 1;
+
+        [SettingPropertyInteger(
+            "Skirmisher Formation",
+            1, 8,
+            "0",
+            RequireRestart = false,
+            HintText = "Default slot for foot troops whose primary role is throwing weapons.",
+            Order = 4)]
+        [SettingPropertyGroup("Troop Role Defaults")]
+        public int SkirmisherFormation { get; set; } = 1;
+
+        [SettingPropertyInteger(
+            "Foot Archer Formation",
+            1, 8,
+            "0",
+            RequireRestart = false,
+            HintText = "Default slot for bow-using foot archers.",
+            Order = 5)]
+        [SettingPropertyGroup("Troop Role Defaults")]
+        public int FootArcherFormation { get; set; } = 2;
+
+        [SettingPropertyInteger(
+            "Crossbowman Formation",
+            1, 8,
+            "0",
+            RequireRestart = false,
+            HintText = "Default slot for crossbow-using foot archers.",
+            Order = 6)]
+        [SettingPropertyGroup("Troop Role Defaults")]
+        public int CrossbowmanFormation { get; set; } = 2;
+
+        [SettingPropertyInteger(
+            "Melee Cavalry Formation",
+            1, 8,
+            "0",
+            RequireRestart = false,
+            HintText = "Default slot for mounted melee troops.",
+            Order = 7)]
+        [SettingPropertyGroup("Troop Role Defaults")]
+        public int MeleeCavalryRoleFormation { get; set; } = 3;
+
+        [SettingPropertyInteger(
+            "Horse Archer Formation",
+            1, 8,
+            "0",
+            RequireRestart = false,
+            HintText = "Default slot for mounted bow or crossbow troops.",
+            Order = 8)]
+        [SettingPropertyGroup("Troop Role Defaults")]
+        public int HorseArcherRoleFormation { get; set; } = 4;
+
+        [SettingPropertyBool(
             "Enable Mid-Battle Reassignment",
             RequireRestart = false,
             HintText = "When enabled, troops can be moved between configured formations during battle as their mounted or ammo state changes.",

@@ -29,4 +29,27 @@
                   DoNotAcceptEvents="true" />
     </Children>
   </ButtonWidget>
+  <ButtonWidget WidthSizePolicy="Fixed"
+                HeightSizePolicy="Fixed"
+                SuggestedWidth="32"
+                SuggestedHeight="32"
+                HorizontalAlignment="Right"
+                VerticalAlignment="Center"
+                MarginRight="130"
+                IsVisible="@IsSecondaryFormationBadgeVisible"
+                Brush="Party.UpgradeSlot.Button"
+                DoNotPassEventsToChildren="true"
+                Command.Click="ExecuteCycleSecondaryFormation"
+                Command.AlternateClick="ExecuteClearSecondaryFormation">
+    <Children>
+      <TextWidget WidthSizePolicy="StretchToParent"
+                  HeightSizePolicy="StretchToParent"
+                  Text="@SecondaryFormationLabel"
+                  Brush="Party.Text.Tuple"
+                  Brush.FontSize="18"
+                  Brush.TextHorizontalAlignment="Center"
+                  Brush.TextVerticalAlignment="Center"
+                  DoNotAcceptEvents="true" />
+    </Children>
+  </ButtonWidget>
 </Prefab>

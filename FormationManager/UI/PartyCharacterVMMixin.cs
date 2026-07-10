@@ -18,7 +18,9 @@ namespace FormationManager.UI
         private static readonly string[] Labels = { "\u2014", "I", "II", "III", "IV", "V", "VI", "VII", "VIII" };
 
         private string _formationLabel = "\u2014";
+        private string _secondaryFormationLabel = "+";
         private bool _isFormationBadgeVisible;
+        private bool _isSecondaryFormationBadgeVisible;
 
         private static int _instantiationCount = 0;
 
@@ -58,6 +60,30 @@ namespace FormationManager.UI
                 if (_isFormationBadgeVisible == value) return;
                 _isFormationBadgeVisible = value;
                 OnPropertyChanged(nameof(IsFormationBadgeVisible));
+            }
+        }
+
+        [DataSourceProperty]
+        public string SecondaryFormationLabel
+        {
+            get => _secondaryFormationLabel;
+            set
+            {
+                if (_secondaryFormationLabel == value) return;
+                _secondaryFormationLabel = value;
+                OnPropertyChanged(nameof(SecondaryFormationLabel));
+            }
+        }
+
+        [DataSourceProperty]
+        public bool IsSecondaryFormationBadgeVisible
+        {
+            get => _isSecondaryFormationBadgeVisible;
+            set
+            {
+                if (_isSecondaryFormationBadgeVisible == value) return;
+                _isSecondaryFormationBadgeVisible = value;
+                OnPropertyChanged(nameof(IsSecondaryFormationBadgeVisible));
             }
         }
 
@@ -109,6 +135,54 @@ namespace FormationManager.UI
             Refresh();
         }
 
+        [DataSourceMethod]
+        public void ExecuteCycleSecondaryFormation()
+        {
+            var character = ViewModel?.Character;
+            if (character == null) return;
+
+            int primary = FormationAssignmentStore.GetAssignment(character.StringId);
+            if (primary < 0)
+            {
+                FormationAssignmentStore.SetAssignment(character.StringId, 0);
+                FormationAssignmentStore.Save();
+                Refresh();
+                return;
+            }
+
+            int current = FormationAssignmentStore.GetSecondaryAssignment(character.StringId);
+            int next = current;
+            do
+            {
+                next++;
+                if (next > 7)
+                {
+                    next = -1;
+                    break;
+                }
+            }
+            while (next == primary);
+
+            if (next < 0)
+                FormationAssignmentStore.ClearSecondaryAssignment(character.StringId);
+            else
+                FormationAssignmentStore.SetSecondaryAssignment(character.StringId, next);
+
+            FormationAssignmentStore.Save();
+            Refresh();
+        }
+
+        [DataSourceMethod]
+        public void ExecuteClearSecondaryFormation()
+        {
+            var character = ViewModel?.Character;
+            if (character == null) return;
+
+            FormationAssignmentStore.ClearSecondaryAssignment(character.StringId);
+            FormationAssignmentStore.Save();
+            Refresh();
+        }
+
 
         // ── Internal refresh ──────────────────────────────────────────────────
 
@@ -123,11 +197,17 @@ namespace FormationManager.UI
             if (ViewModel?.Character == null || !modEnabled)
             {
                 FormationLabel = "\u2014";
+                SecondaryFormationLabel = "+";
+                IsSecondaryFormationBadgeVisible = false;
                 return;
             }
 
             int idx = FormationAssignmentStore.GetAssignment(ViewModel.Character.StringId);
             FormationLabel = (idx >= 0 && idx <= 7) ? Labels[idx + 1] : "\u2014";
+
+            int secondaryIdx = FormationAssignmentStore.GetSecondaryAssignment(ViewModel.Character.StringId);
+            SecondaryFormationLabel = (secondaryIdx >= 0 && secondaryIdx <= 7) ? Labels[secondaryIdx + 1] : "+";
+            IsSecondaryFormationBadgeVisible = IsFormationBadgeVisible && idx >= 0;
         }
 
         public override void OnRefresh() => Refresh();

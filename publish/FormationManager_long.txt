@@ -1,5 +1,5 @@
 [size=4][b]Description[/b][/size]
-[size=3][color=#D4D4D8]Formation Manager is a utility mod that allows players to assign specific troop types to specific formations (1-8) directly in the party screen. The assignments are persistent and automatically applied when entering battles, preventing the game from auto-shuffling your troops.[/color][/size]
+[size=3][color=#D4D4D8]Formation Manager lets you set persistent troop and role-based formation defaults, then fine-tune each battle in Bannerlord's Order of Battle screen. Your defaults organize the first layout without taking control away from you.[/color][/size]
 
 [size=4][b]Installation instructions[/b][/size]
 [size=3][color=#D4D4D8]1. Extract the downloaded archive into your Mount & Blade II Bannerlord game directory (specifically inside the Modules folder).
@@ -8,8 +8,10 @@
 
 [size=4][b]Main features[/b][/size]
 [size=3][color=#D4D4D8]- Party Screen Badges: Assign troops to formation numbers (I-VIII) directly from the party screen.
-- Persistent Assignments: Assignments are saved automatically per campaign main hero.
-- Fixed Spawning: Troops spawn in and stay in their designated formations.[/color][/size]
+- Two-Formation Splits: Give a troop stack a second formation badge to split it evenly between two groups.
+- Troop Role Defaults: Configure default slots for frontline, shock, pike, skirmisher, archer, crossbow, cavalry, and horse-archer roles.
+- Editable Order of Battle: Start from your defaults, then adjust formation types and native OOB weights for the current battle.
+- Persistent Assignments: Assignments are saved automatically per campaign main hero.[/color][/size]
 
 [size=4][b]Requirements[/b][/size]
 [size=3][color=#D4D4D8]- Harmony

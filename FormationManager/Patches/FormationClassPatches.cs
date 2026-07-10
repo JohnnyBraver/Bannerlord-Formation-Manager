@@ -30,6 +30,12 @@ namespace FormationManager.Patches
             if (!MissionGuards.IsCurrentMissionSupported())
                 return;
 
+            // The role and troop assignments create the initial OOB layout only.
+            // Once the screen is visible, the player's type selector and weight
+            // sliders must be allowed to call the unmodified native flow.
+            if (!OrderOfBattleDefaultSession.IsApplyingDefaults)
+                return;
+
             if (formation == null)
                 return;
 
@@ -73,6 +79,9 @@ namespace FormationManager.Patches
 
         private static bool HasTroopsAssigned(int formationIndex)
         {
+            if (!FormationAssignmentResolver.HasCustomDefaults(Settings.Instance))
+                return false;
+
             var mainParty = MobileParty.MainParty;
             if (mainParty?.MemberRoster == null)
                 return false;
@@ -82,15 +91,16 @@ namespace FormationManager.Patches
                 var element = mainParty.MemberRoster.GetElementCopyAtIndex(i);
                 if (element.Character == null)
                     continue;
+                if (element.Character == Hero.MainHero?.CharacterObject)
+                    continue;
 
-                int assignedIndex = FormationAssignmentStore.GetAssignment(element.Character.StringId);
-                if (assignedIndex == formationIndex)
-                {
-                    if (element.Number > element.WoundedNumber)
-                    {
-                        return true;
-                    }
-                }
+                int readyCount = element.Number - element.WoundedNumber;
+                if (FormationAssignmentResolver.GetAssignedCountForFormation(
+                    element.Character,
+                    readyCount,
+                    formationIndex,
+                    Settings.Instance) > 0)
+                    return true;
             }
 
             return false;
@@ -98,6 +108,9 @@ namespace FormationManager.Patches
 
         public static DeploymentFormationClass GetCustomAssignmentClass(int formationIndex)
         {
+            if (!FormationAssignmentResolver.HasCustomDefaults(Settings.Instance))
+                return GetVanillaDefaultClass(formationIndex);
+
             var mainParty = MobileParty.MainParty;
             bool hasCustomTroops = false;
 
@@ -107,15 +120,17 @@ namespace FormationManager.Patches
                 {
                     var element = mainParty.MemberRoster.GetElementCopyAtIndex(i);
                     if (element.Character == null) continue;
+                    if (element.Character == Hero.MainHero?.CharacterObject) continue;
                     if (element.Number <= element.WoundedNumber) continue;
 
-                    int assignedIndex = FormationAssignmentStore.GetAssignment(element.Character.StringId);
-                    if (assignedIndex == formationIndex)
+                    int[] assignedIndices = FormationAssignmentResolver.GetFormationIndices(element.Character, Settings.Instance);
+                    if (assignedIndices.Contains(formationIndex))
                     {
-                        var nativeClass = element.Character.DefaultFormationClass;
-                        return MapToDeploymentClass(nativeClass);
+                        var deploymentClass = MapToDeploymentClass(element.Character);
+                        Logger.Log($"[RefreshFormationPatch] Formation {formationIndex + 1} card class resolved from {element.Character.StringId}: {deploymentClass}");
+                        return deploymentClass;
                     }
-                    if (assignedIndex >= 0)
+                    if (assignedIndices.Length > 0)
                     {
                         hasCustomTroops = true;
                     }
@@ -125,24 +140,31 @@ namespace FormationManager.Patches
             var mainHero = Hero.MainHero;
             if (mainHero != null)
             {
-                int assignedIndex = FormationAssignmentStore.GetAssignment(mainHero.CharacterObject.StringId);
-                if (assignedIndex == formationIndex)
+                // Role defaults are deliberately for regular troop stacks. The main
+                // hero keeps the game's normal OOB handling unless explicitly saved.
+                int[] assignedIndices = FormationAssignmentStore.GetAssignments(mainHero.CharacterObject.StringId);
+                if (assignedIndices.Contains(formationIndex))
                 {
                     return MapToDeploymentClass(mainHero.CharacterObject.DefaultFormationClass);
                 }
-                if (assignedIndex >= 0)
+                if (assignedIndices.Length > 0)
                 {
                     hasCustomTroops = true;
                 }
             }
 
-            // If the player has configured custom assignments, any slot that does NOT have custom assigned troops should be Unset.
+            // If the player has configured role or troop defaults, any unused slot
+            // is unset until the player creates it through the native OOB controls.
             if (hasCustomTroops)
             {
                 return DeploymentFormationClass.Unset;
             }
 
-            // Fallback to default OOB slot classes ONLY if there are no custom assignments in the entire party (vanilla behavior)
+            return GetVanillaDefaultClass(formationIndex);
+        }
+
+        private static DeploymentFormationClass GetVanillaDefaultClass(int formationIndex)
+        {
             if (formationIndex == 0 || formationIndex == 4 || formationIndex == 5)
                 return DeploymentFormationClass.Infantry;
             if (formationIndex == 1)
@@ -175,6 +197,26 @@ namespace FormationManager.Patches
                     return DeploymentFormationClass.Unset;
             }
         }
+
+        private static DeploymentFormationClass MapToDeploymentClass(BasicCharacterObject character)
+        {
+            var settings = Settings.Instance;
+            if (settings == null || !settings.UsePartyManagerRoleDefaults)
+                return MapToDeploymentClass(character.DefaultFormationClass);
+
+            switch (PartyManagerRoleClassifier.Classify(character))
+            {
+                case PartyManagerRole.FootArcher:
+                case PartyManagerRole.Crossbowman:
+                    return DeploymentFormationClass.Ranged;
+                case PartyManagerRole.MeleeCavalry:
+                    return DeploymentFormationClass.Cavalry;
+                case PartyManagerRole.HorseArcher:
+                    return DeploymentFormationClass.HorseArcher;
+                default:
+                    return DeploymentFormationClass.Infantry;
+            }
+        }
     }
 
     /// <summary>
@@ -200,107 +242,147 @@ namespace FormationManager.Patches
     }
 
     /// <summary>
-    /// Patches the Initialize method on the OrderOfBattleVM.
-    /// Run at the very end of VM initialization to ensure that:
-    /// 1. Preview agents are moved to their correct assigned formations (since the engine's internal setup resets them).
-    /// 2. The dropdown selector and card classes list are forced to sync with the target classes.
-    /// 3. Weights and counts are updated to reflect this final layout.
+    /// Tracks the short initial-layout phase of an OOB screen. The same native UI
+    /// remains completely editable after this phase finishes.
+    /// </summary>
+    internal static class OrderOfBattleDefaultSession
+    {
+        private static Mission? _mission;
+        private static bool _isApplyingDefaults;
+
+        public static bool IsApplyingDefaults => _isApplyingDefaults && _mission == Mission.Current;
+
+        public static void Begin(Mission mission)
+        {
+            _mission = mission;
+            _isApplyingDefaults = mission != null;
+        }
+
+        public static void Complete()
+        {
+            _isApplyingDefaults = false;
+        }
+    }
+
+    /// <summary>
+    /// Creates the initial role/explicit-assignment layout before handing all class
+    /// and weight controls back to the native OOB screen.
     /// </summary>
     [HarmonyPatch(typeof(OrderOfBattleVM), "Initialize")]
     internal static class OrderOfBattleVMInitializePatch
     {
+        [HarmonyPrefix]
+        private static void Prefix(Mission __0)
+        {
+            OrderOfBattleDefaultSession.Begin(__0);
+        }
+
         [HarmonyPostfix]
         private static void Postfix(OrderOfBattleVM __instance)
         {
-            var settings = Settings.Instance;
-            if (settings == null || !settings.ModEnabled)
-                return;
-
-            if (!MissionGuards.IsCurrentMissionSupported())
-                return;
-
-            Logger.Log("[OrderOfBattleVMInitializePatch] Postfix: Enforcing custom assignments on OOB cards and preview agents...");
-
-            var mission = Mission.Current;
-            if (mission == null)
+            try
             {
-                Logger.Log("[OrderOfBattleVMInitializePatch] Mission is null!");
-                return;
-            }
+                var settings = Settings.Instance;
+                if (settings == null || !settings.ModEnabled || !MissionGuards.IsCurrentMissionSupported())
+                    return;
 
-            var team = mission.PlayerTeam;
-            if (team == null)
-            {
-                Logger.Log("[OrderOfBattleVMInitializePatch] PlayerTeam is null!");
-                return;
-            }
+                if (!FormationAssignmentResolver.HasCustomDefaults(settings))
+                    return;
 
-            // 1. Move preview agents to their assigned formations
-            foreach (var agent in team.ActiveAgents)
-            {
-                if (agent.Character == null) continue;
+                Logger.Log("[OrderOfBattleVMInitializePatch] Applying role and troop assignment defaults to OOB...");
 
-                int assignedIndex = FormationAssignmentStore.GetAssignment(agent.Character.StringId);
-                if (assignedIndex >= 0 && assignedIndex <= 7)
+                var mission = Mission.Current;
+                var team = mission?.PlayerTeam;
+                if (team == null)
                 {
+                    Logger.Log("[OrderOfBattleVMInitializePatch] PlayerTeam is null!");
+                    return;
+                }
+
+                var assignmentPlan = OobDefaultAssignmentPlan.ForActiveAgents(team, settings);
+
+                // 1. Establish default preview positions. These are only a starting
+                // point: selecting classes or changing weights afterwards uses the
+                // game's normal OOB controls and is never reapplied by this patch.
+                foreach (var agent in team.ActiveAgents)
+                {
+                    var character = agent.Character;
+                    if (character == null || agent.IsMount || agent.IsMainAgent)
+                        continue;
+
+                    int assignedIndex = assignmentPlan.GetFormationIndex(agent, character, settings);
+                    if (assignedIndex < 0 || assignedIndex > 7)
+                        continue;
+
                     var targetFormation = team.GetFormation((FormationClass)assignedIndex);
-                    if (targetFormation != null && agent.Formation != targetFormation)
+                    if (targetFormation == null || targetFormation.Team != team || agent.Formation == targetFormation)
+                        continue;
+
+                    try
                     {
                         agent.Formation = targetFormation;
-                        Logger.Log($"[OrderOfBattleVMInitializePatch] Moved preview agent {agent.Character.StringId} to formation {assignedIndex} (Name: {agent.Character.Name})");
+                        Logger.Log($"[OrderOfBattleVMInitializePatch] Defaulted preview agent {character.StringId} to formation {assignedIndex + 1} (Name: {character.Name})");
+                    }
+                    catch (Exception ex)
+                    {
+                        Logger.Log($"[OrderOfBattleVMInitializePatch] Could not move preview agent {character.StringId}: {ex.GetType().Name}: {ex.Message}");
                     }
                 }
-            }
 
-            // 2. Force the correct classes on the cards and class VMs
-            var formationsList = __instance.FormationsFirstHalf.Concat(__instance.FormationsSecondHalf).ToList();
-            foreach (var item in formationsList)
-            {
-                if (item.Formation == null) continue;
-                int idx = item.Formation.Index;
-
-                var targetClass = RefreshFormationPatch.GetCustomAssignmentClass(idx);
-                if (targetClass != DeploymentFormationClass.Unset)
+                // 2. Seed only the initial card types. OrderOfBattleDefaultSession
+                // remains active while RefreshFormation runs, then is completed in
+                // finally so later player interaction is unmodified.
+                var formationsList = __instance.FormationsFirstHalf.Concat(__instance.FormationsSecondHalf).ToList();
+                foreach (var item in formationsList)
                 {
-                    Logger.Log($"[OrderOfBattleVMInitializePatch] Forcing formation {idx} card class to {targetClass}");
-                    item.RefreshFormation(item.Formation, targetClass, true);
+                    if (item.Formation == null) continue;
+                    int idx = item.Formation.Index;
 
-                    // Manually enforce the class VM backing property to match targetClass.
-                    // This guarantees that the UI slider and backing class match exactly,
-                    // bypassing any binding update glitches in the base game's selector event loop.
-                    var targetNativeClass = MapToNativeClass(targetClass);
-                    if (item.Classes != null && item.Classes.Count > 0)
+                    var targetClass = RefreshFormationPatch.GetCustomAssignmentClass(idx);
+                    if (targetClass != DeploymentFormationClass.Unset)
                     {
-                        item.Classes[0].Class = targetNativeClass;
-                        if (item.Classes.Count > 1)
+                        item.RefreshFormation(item.Formation, targetClass, true);
+                        var targetNativeClass = MapToNativeClass(targetClass);
+                        if (item.Classes != null && item.Classes.Count > 0)
                         {
-                            item.Classes[1].Class = FormationClass.Unset;
+                            item.Classes[0].Class = targetNativeClass;
+                            if (item.Classes.Count > 1)
+                                item.Classes[1].Class = FormationClass.Unset;
                         }
                     }
                 }
+
+                // 3. Show the default split in the card counts and weights.
+                WeightDistributor.DistributeWeights(__instance);
+
+                foreach (var item in formationsList)
+                    item.OnSizeChanged();
+
+                try
+                {
+                    AccessTools.Method(typeof(OrderOfBattleVM), "RefreshWeights").Invoke(__instance, null);
+                }
+                catch (Exception ex)
+                {
+                    Logger.Log($"[OrderOfBattleVMInitializePatch] Failed to call RefreshWeights: {ex}");
+                }
+                __instance.OnUnitDeployed();
+
+                Logger.Log("[OrderOfBattleVMInitializePatch] Defaults applied; native OOB controls are now unlocked.");
             }
-
-            // 3. Redistribute weights on final card classes
-            WeightDistributor.DistributeWeights(__instance);
-
-            // 4. Call OnSizeChanged on all cards to update counts
-            foreach (var item in formationsList)
+            finally
             {
-                item.OnSizeChanged();
+                OrderOfBattleDefaultSession.Complete();
             }
+        }
 
-            // 5. Refresh weights and UI via reflection
-            try
-            {
-                AccessTools.Method(typeof(OrderOfBattleVM), "RefreshWeights").Invoke(__instance, null);
-            }
-            catch (Exception ex)
-            {
-                Logger.Log($"[OrderOfBattleVMInitializePatch] Failed to call RefreshWeights: {ex}");
-            }
-            __instance.OnUnitDeployed();
-
-            Logger.Log("[OrderOfBattleVMInitializePatch] Postfix completed successfully.");
+        [HarmonyFinalizer]
+        private static Exception? Finalizer(Exception? __exception)
+        {
+            // A fault in native OOB initialization must not leave the default-only
+            // guard enabled for a later screen refresh in the same mission.
+            OrderOfBattleDefaultSession.Complete();
+            return __exception;
         }
 
         private static FormationClass MapToNativeClass(DeploymentFormationClass dfc)
@@ -328,39 +410,35 @@ namespace FormationManager.Patches
     {
         public static void DistributeWeights(OrderOfBattleVM VM)
         {
+            var settings = Settings.Instance;
+            if (!FormationAssignmentResolver.HasCustomDefaults(settings))
+                return;
+
             DeploymentFormationClass[] cardClasses = new DeploymentFormationClass[8];
             for (int i = 0; i < 8; i++)
             {
                 cardClasses[i] = RefreshFormationPatch.GetCustomAssignmentClass(i);
             }
 
+            var assignmentPlan = OobDefaultAssignmentPlan.ForPlayerRoster(settings);
             int[] classCounts = new int[8];
-
-            var mainParty = MobileParty.MainParty;
-            if (mainParty?.MemberRoster != null)
-            {
-                for (int i = 0; i < mainParty.MemberRoster.Count; i++)
-                {
-                    var element = mainParty.MemberRoster.GetElementCopyAtIndex(i);
-                    if (element.Character == null) continue;
-                    if (element.Number <= element.WoundedNumber) continue;
-
-                    int assignedIndex = FormationAssignmentStore.GetAssignment(element.Character.StringId);
-                    if (assignedIndex >= 0 && assignedIndex <= 7)
-                    {
-                        int count = element.Number - element.WoundedNumber;
-                        classCounts[assignedIndex] += count;
-                    }
-                }
-            }
+            for (int formationIndex = 0; formationIndex < classCounts.Length; formationIndex++)
+                classCounts[formationIndex] = assignmentPlan.GetFormationCount(formationIndex);
 
             var mainHero = Hero.MainHero;
             if (mainHero != null)
             {
-                int assignedIndex = FormationAssignmentStore.GetAssignment(mainHero.CharacterObject.StringId);
-                if (assignedIndex >= 0 && assignedIndex <= 7)
+                int[] assignedIndices = FormationAssignmentStore.GetAssignments(mainHero.CharacterObject.StringId);
+                if (assignedIndices.Length > 0)
                 {
-                    classCounts[assignedIndex] += 1;
+                    for (int formationIndex = 0; formationIndex < classCounts.Length; formationIndex++)
+                    {
+                        classCounts[formationIndex] += FormationAssignmentResolver.GetAssignedCountForFormation(
+                            mainHero.CharacterObject,
+                            1,
+                            formationIndex,
+                            settings);
+                    }
                 }
                 else
                 {

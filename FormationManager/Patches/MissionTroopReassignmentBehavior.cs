@@ -17,6 +17,10 @@ namespace FormationManager.Patches
             if (!MissionGuards.IsCurrentMissionSupported())
                 return;
 
+            var settings = Settings.Instance;
+            if (settings == null || !settings.ModEnabled || !settings.AutoReassignmentEnabled || !settings.BacklineReassignmentEnabled)
+                return;
+
             _elapsedSinceScan += dt;
             if (_elapsedSinceScan < ReassignmentIntervalSeconds)
                 return;
@@ -50,6 +54,9 @@ namespace FormationManager.Patches
 
             foreach (var agent in team.ActiveAgents)
             {
+                if (!CanSafelyMoveAgent(agent, team))
+                    continue;
+
                 ReassignAgent(agent, reason);
             }
         }
@@ -67,55 +74,40 @@ namespace FormationManager.Patches
             if (character == null)
                 return;
 
-            int targetFormationIndex = GetTargetFormationIndex(agent, character, settings);
+            int targetFormationIndex = GetTargetFormationIndex(agent, character, settings, reason);
             if (targetFormationIndex < 0)
                 return;
 
             MoveToFormation(agent, targetFormationIndex, reason);
         }
 
-        private static int GetTargetFormationIndex(Agent agent, BasicCharacterObject character, Settings settings)
+        private static int GetTargetFormationIndex(Agent agent, BasicCharacterObject character, Settings settings, string reason)
         {
             var nativeClass = character.DefaultFormationClass;
 
             if (settings.BacklineReassignmentEnabled && IsRangedClass(nativeClass) && IsOutOfAmmo(agent))
             {
-                return ToFormationIndex(agent.HasMount
+                return FormationAssignmentResolver.ToFormationIndex(agent.HasMount
                     ? settings.MountedBacklineFormation
                     : settings.BacklineFormation);
             }
 
+            // The periodic scan exists solely for the out-of-ammo rule. It must not
+            // pull troops back to their defaults and undo an OOB choice a few seconds
+            // after the player begins the battle.
+            if (reason == "periodic scan")
+                return -1;
+
             if (!agent.HasMount)
             {
                 if (IsMeleeCavalry(nativeClass))
-                    return ToFormationIndex(settings.InfantryFormation);
+                    return FormationAssignmentResolver.ToFormationIndex(settings.InfantryFormation);
 
                 if (nativeClass == FormationClass.HorseArcher)
-                    return ToFormationIndex(settings.ArcherFormation);
+                    return FormationAssignmentResolver.ToFormationIndex(settings.ArcherFormation);
             }
 
-            int assignedIndex = FormationAssignmentStore.GetAssignment(character.StringId);
-            if (assignedIndex >= 0 && assignedIndex <= 7)
-                return assignedIndex;
-
-            return GetDefaultFormationIndex(agent, nativeClass, settings);
-        }
-
-        private static int GetDefaultFormationIndex(Agent agent, FormationClass nativeClass, Settings settings)
-        {
-            if (IsInfantryClass(nativeClass))
-                return ToFormationIndex(settings.InfantryFormation);
-
-            if (nativeClass == FormationClass.Ranged)
-                return ToFormationIndex(settings.ArcherFormation);
-
-            if (IsMeleeCavalry(nativeClass))
-                return ToFormationIndex(agent.HasMount ? settings.CavalryFormation : settings.InfantryFormation);
-
-            if (nativeClass == FormationClass.HorseArcher)
-                return ToFormationIndex(agent.HasMount ? settings.CavalryFormation : settings.ArcherFormation);
-
-            return -1;
+            return FormationAssignmentResolver.ResolveFormationIndex(agent, character, settings);
         }
 
         private static bool IsPlayerTroop(Agent agent)
@@ -127,17 +119,33 @@ namespace FormationManager.Patches
             return team != null && team.IsPlayerTeam;
         }
 
+        private static bool CanSafelyMoveAgent(Agent agent, Team expectedTeam)
+        {
+            if (agent == null)
+                return false;
+
+            if (agent.Mission != Mission.Current)
+                return false;
+
+            if (!agent.IsActive() || agent.State != AgentState.Active)
+                return false;
+
+            if (!agent.IsHuman || agent.IsMount || agent.IsMainAgent)
+                return false;
+
+            if (agent.Team != expectedTeam || !expectedTeam.IsPlayerTeam)
+                return false;
+
+            if (agent.Detachment != null || agent.IsDetachedFromFormation)
+                return false;
+
+            return true;
+        }
+
         private static bool IsOutOfAmmo(Agent agent)
         {
             var equipment = agent.Equipment;
             return equipment != null && !equipment.ContainsNonConsumableRangedWeaponWithAmmo();
-        }
-
-        private static bool IsInfantryClass(FormationClass formationClass)
-        {
-            return formationClass == FormationClass.Infantry
-                || formationClass == FormationClass.HeavyInfantry
-                || formationClass == FormationClass.Skirmisher;
         }
 
         private static bool IsRangedClass(FormationClass formationClass)
@@ -153,30 +161,30 @@ namespace FormationManager.Patches
                 || formationClass == FormationClass.LightCavalry;
         }
 
-        private static int ToFormationIndex(int configuredFormation)
-        {
-            if (configuredFormation < 1)
-                return 0;
-
-            if (configuredFormation > 8)
-                return 7;
-
-            return configuredFormation - 1;
-        }
-
         private static void MoveToFormation(Agent agent, int formationIndex, string reason)
         {
+            var mission = Mission.Current;
             var team = agent.Team;
             var character = agent.Character;
-            if (team == null || character == null)
+            if (mission == null || team == null || character == null)
+                return;
+
+            if (!CanSafelyMoveAgent(agent, team))
                 return;
 
             var targetFormation = team.GetFormation((FormationClass)formationIndex);
-            if (targetFormation == null || agent.Formation == targetFormation)
+            if (targetFormation == null || targetFormation.Team != team || agent.Formation == targetFormation)
                 return;
 
-            agent.Formation = targetFormation;
-            Logger.Log($"[MissionTroopReassignmentBehavior] Moved {character.StringId} to formation {formationIndex + 1} after {reason} (native class: {character.DefaultFormationClass}, has mount: {agent.HasMount}).");
+            try
+            {
+                agent.Formation = targetFormation;
+                Logger.Log($"[MissionTroopReassignmentBehavior] Moved {character.StringId} to formation {formationIndex + 1} after {reason} (native class: {character.DefaultFormationClass}, has mount: {agent.HasMount}).");
+            }
+            catch (System.Exception ex)
+            {
+                Logger.Log($"[MissionTroopReassignmentBehavior] Skipped moving {character.StringId} to formation {formationIndex + 1} after {reason}; Bannerlord rejected the move. AgentState={agent.State}, IsActive={agent.IsActive()}, IsDetached={agent.IsDetachedFromFormation}, HasDetachment={agent.Detachment != null}. Error={ex.GetType().Name}: {ex.Message}");
+            }
         }
     }
 }

@@ -1,5 +1,20 @@
 # Changelog - Formation Manager
 
+## [v0.3.0] - 2026-07-10
+
+### Added
+- **Editable Order of Battle Defaults**: Your saved troop and role assignments now seed the OOB screen without locking it. Change card types and use the native weight controls for the battle at hand.
+- **Troop Role Defaults**: Configure formation slots for frontline, shock, pike, skirmisher, archer, crossbow, cavalry, and horse-archer roles. The feature is enabled by default and can be turned off in MCM.
+- **Two-Formation Stack Splits**: Party-screen troop badges now include an optional second slot, letting one troop stack start split across two formations.
+
+### Changed
+- **Clearer Role Settings**: Renamed the MCM section to “Troop Role Defaults” and placed its enable toggle at the top.
+
+### Fixed
+- **Balanced Odd Splits**: Multiple odd-numbered stacks assigned to the same pair of formations now share remainder troops between both sides instead of always favouring the first formation.
+- **Correct OOB Card Types**: Role-based card typing now ignores the player character, so a mounted main hero cannot turn a shock-infantry formation into a cavalry card.
+- **OOB Choice Preservation**: Periodic reassignment no longer pulls troops back to defaults after deployment; it only performs the optional out-of-ammo backline check.
+
 ## [v0.2.1] - 2026-07-05
 
 ### Changed
