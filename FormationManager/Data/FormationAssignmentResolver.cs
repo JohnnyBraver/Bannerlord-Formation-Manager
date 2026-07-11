@@ -14,14 +14,14 @@ namespace FormationManager.Data
     internal static class FormationAssignmentResolver
     {
         public static bool HasCustomDefaults(Settings? settings)
-            => (settings?.UsePartyManagerRoleDefaults ?? false) || FormationAssignmentStore.HasAnyAssignments;
+            => FormationAssignmentStore.HasAnyAssignments || HasConfiguredDefaultFormations(settings);
 
         public static int[] GetFormationIndices(BasicCharacterObject character, Settings? settings)
         {
             if (character == null)
                 return Array.Empty<int>();
 
-            if (FormationAssignmentStore.TryGetDeploymentPlan(character.StringId, out var deploymentPlan))
+            if (AdvancedPlansEnabled(settings) && FormationAssignmentStore.TryGetDeploymentPlan(character.StringId, out var deploymentPlan))
             {
                 if (deploymentPlan!.Mode == TroopDeploymentPlanMode.Even)
                     return deploymentPlan.FormationIndices.ToArray();
@@ -44,7 +44,7 @@ namespace FormationManager.Data
 
         public static int ResolveFormationIndex(Agent? agent, BasicCharacterObject character, Settings? settings)
         {
-            if (TryGetEvenSplitTargets(character, out int[] evenTargets))
+            if (TryGetEvenSplitTargets(character, out int[] evenTargets, settings))
             {
                 if (agent == null)
                     return evenTargets[0];
@@ -53,7 +53,7 @@ namespace FormationManager.Data
                 return evenTargets[evenAgentIndex % evenTargets.Length];
             }
 
-            if (FormationAssignmentStore.TryGetDeploymentPlan(character.StringId, out var customPlan) &&
+            if (AdvancedPlansEnabled(settings) && FormationAssignmentStore.TryGetDeploymentPlan(character.StringId, out var customPlan) &&
                 customPlan!.Mode == TroopDeploymentPlanMode.Custom)
             {
                 // The OOB plan applies exact custom counts once the deployment agents
@@ -80,10 +80,10 @@ namespace FormationManager.Data
             if (character == null)
                 return 0;
 
-            if (settings != null && settings.UsePartyManagerRoleDefaults)
-                return ToFormationIndex(GetRoleFormation(PartyManagerRoleClassifier.Classify(character), settings));
+            if (TryGetConfiguredDefaultFormationIndex(character, settings, out int formationIndex))
+                return formationIndex;
 
-            return ToFormationIndex(GetNativeClassFormation(character.DefaultFormationClass, settings));
+            return GetVanillaFormationIndex(character.DefaultFormationClass);
         }
 
         public static int GetAssignedCountForFormation(BasicCharacterObject character, int troopCount, int formationIndex, Settings? settings)
@@ -94,13 +94,13 @@ namespace FormationManager.Data
                 : 0;
         }
 
-        public static bool TryGetEvenSplitTargets(BasicCharacterObject character, out int[] formationIndices)
+        public static bool TryGetEvenSplitTargets(BasicCharacterObject character, out int[] formationIndices, Settings? settings = null)
         {
             formationIndices = Array.Empty<int>();
             if (character == null)
                 return false;
 
-            if (FormationAssignmentStore.TryGetDeploymentPlan(character.StringId, out var deploymentPlan) &&
+            if (AdvancedPlansEnabled(settings) && FormationAssignmentStore.TryGetDeploymentPlan(character.StringId, out var deploymentPlan) &&
                 deploymentPlan!.Mode == TroopDeploymentPlanMode.Even)
             {
                 formationIndices = deploymentPlan.FormationIndices.ToArray();
@@ -124,12 +124,13 @@ namespace FormationManager.Data
             int troopCount,
             out Dictionary<int, int> targets,
             out Dictionary<int, int> weights,
-            out int surplus)
+            out int surplus,
+            Settings? settings = null)
         {
             targets = new Dictionary<int, int>();
             weights = new Dictionary<int, int>();
             surplus = 0;
-            if (character == null || !FormationAssignmentStore.TryGetDeploymentPlan(character.StringId, out var plan) ||
+            if (character == null || !AdvancedPlansEnabled(settings) || !FormationAssignmentStore.TryGetDeploymentPlan(character.StringId, out var plan) ||
                 plan!.Mode != TroopDeploymentPlanMode.Custom)
                 return false;
 
@@ -149,13 +150,13 @@ namespace FormationManager.Data
             if (character == null || troopCount <= 0)
                 return allocation;
 
-            if (TryGetEvenSplitTargets(character, out int[] evenTargets))
+            if (TryGetEvenSplitTargets(character, out int[] evenTargets, settings))
             {
                 AllocateEvenly(allocation, evenTargets, troopCount);
                 return allocation;
             }
 
-            if (FormationAssignmentStore.TryGetDeploymentPlan(character.StringId, out var deploymentPlan) &&
+            if (AdvancedPlansEnabled(settings) && FormationAssignmentStore.TryGetDeploymentPlan(character.StringId, out var deploymentPlan) &&
                 deploymentPlan!.Mode == TroopDeploymentPlanMode.Custom)
             {
                 AllocateCustomPlan(allocation, deploymentPlan, troopCount, GetDefaultFormationIndex(character, settings), settings?.PrioritizeWeightsInSmallStacks ?? false);
@@ -170,6 +171,26 @@ namespace FormationManager.Data
             }
 
             allocation[GetDefaultFormationIndex(character, settings)] = troopCount;
+            return allocation;
+        }
+
+        public static Dictionary<int, int> GetAllocatedCustomPlanCounts(
+            BasicCharacterObject character,
+            int troopCount,
+            IReadOnlyDictionary<int, int> targets,
+            IReadOnlyDictionary<int, int> weights,
+            Settings? settings)
+        {
+            var allocation = new Dictionary<int, int>();
+            if (character == null || troopCount <= 0)
+                return allocation;
+
+            var plan = TroopDeploymentPlan.CreateCustom();
+            foreach (var pair in targets)
+                plan.FormationTargets[pair.Key] = pair.Value;
+            foreach (var pair in weights)
+                plan.FormationWeights[pair.Key] = pair.Value;
+            AllocateCustomPlan(allocation, plan, troopCount, GetDefaultFormationIndex(character, settings), settings?.PrioritizeWeightsInSmallStacks ?? false);
             return allocation;
         }
 
@@ -282,6 +303,67 @@ namespace FormationManager.Data
             allocation[formationIndex] = allocation.TryGetValue(formationIndex, out int existing) ? existing + count : count;
         }
 
+        private static bool AdvancedPlansEnabled(Settings? settings)
+            => settings?.ShowAdvancedFormationEditor ?? Settings.Instance?.ShowAdvancedFormationEditor ?? true;
+
+        private static bool HasConfiguredDefaultFormations(Settings? settings)
+        {
+            if (settings == null)
+                return false;
+
+            if (settings.UsePartyManagerRoleDefaults)
+            {
+                return IsValidConfiguredFormation(settings.FrontlineInfantryFormation) ||
+                       IsValidConfiguredFormation(settings.ShockInfantryFormation) ||
+                       IsValidConfiguredFormation(settings.PikeInfantryFormation) ||
+                       IsValidConfiguredFormation(settings.SkirmisherFormation) ||
+                       IsValidConfiguredFormation(settings.FootArcherFormation) ||
+                       IsValidConfiguredFormation(settings.CrossbowmanFormation) ||
+                       IsValidConfiguredFormation(settings.MeleeCavalryRoleFormation) ||
+                       IsValidConfiguredFormation(settings.HorseArcherRoleFormation);
+            }
+
+            return IsValidConfiguredFormation(settings.InfantryFormation) ||
+                   IsValidConfiguredFormation(settings.ArcherFormation) ||
+                   IsValidConfiguredFormation(settings.CavalryFormation);
+        }
+
+        private static bool TryGetConfiguredDefaultFormationIndex(BasicCharacterObject character, Settings? settings, out int formationIndex)
+        {
+            formationIndex = 0;
+            if (settings == null)
+                return false;
+
+            int configuredFormation = settings.UsePartyManagerRoleDefaults
+                ? GetRoleFormation(PartyManagerRoleClassifier.Classify(character), settings)
+                : GetNativeClassFormation(character.DefaultFormationClass, settings);
+            if (!IsValidConfiguredFormation(configuredFormation))
+                return false;
+
+            formationIndex = configuredFormation - 1;
+            return true;
+        }
+
+        private static bool IsValidConfiguredFormation(int configuredFormation)
+            => configuredFormation >= 1 && configuredFormation <= 8;
+
+        private static int GetVanillaFormationIndex(FormationClass formationClass)
+        {
+            switch (formationClass)
+            {
+                case FormationClass.Ranged:
+                    return 1;
+                case FormationClass.Cavalry:
+                case FormationClass.LightCavalry:
+                case FormationClass.HeavyCavalry:
+                    return 2;
+                case FormationClass.HorseArcher:
+                    return 3;
+                default:
+                    return 0;
+            }
+        }
+
         private static int GetRoleFormation(PartyManagerRole role, Settings settings)
         {
             switch (role)
@@ -309,21 +391,18 @@ namespace FormationManager.Data
 
         private static int GetNativeClassFormation(FormationClass formationClass, Settings? settings)
         {
-            if (settings == null)
-                return 1;
-
             switch (formationClass)
             {
                 case FormationClass.Ranged:
-                    return settings.ArcherFormation;
+                    return settings?.ArcherFormation ?? 0;
                 case FormationClass.HorseArcher:
-                    return settings.CavalryFormation;
+                    return settings?.CavalryFormation ?? 0;
                 case FormationClass.Cavalry:
                 case FormationClass.LightCavalry:
                 case FormationClass.HeavyCavalry:
-                    return settings.CavalryFormation;
+                    return settings?.CavalryFormation ?? 0;
                 default:
-                    return settings.InfantryFormation;
+                    return settings?.InfantryFormation ?? 0;
             }
         }
 

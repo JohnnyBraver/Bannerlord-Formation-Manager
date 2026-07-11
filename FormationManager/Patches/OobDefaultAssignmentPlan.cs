@@ -16,12 +16,21 @@ namespace FormationManager.Patches
     internal sealed class OobDefaultAssignmentPlan
     {
         private readonly int[] _formationCounts = new int[8];
+        private readonly int[,] _formationClassCounts = new int[8, 7];
         private readonly Dictionary<int, int> _agentFormationIndices = new();
         private readonly Dictionary<string, Dictionary<int, int>> _splitTargetCounts = new();
         private readonly Dictionary<string, Dictionary<int, int>> _weightedTargetCounts = new();
 
         public int GetFormationCount(int formationIndex)
             => formationIndex >= 0 && formationIndex < _formationCounts.Length ? _formationCounts[formationIndex] : 0;
+
+        public int GetFormationClassCount(int formationIndex, DeploymentFormationClass deploymentClass)
+        {
+            int classIndex = (int)deploymentClass;
+            return formationIndex >= 0 && formationIndex < 8 && classIndex >= 0 && classIndex < 7
+                ? _formationClassCounts[formationIndex, classIndex]
+                : 0;
+        }
 
         public int GetFormationIndex(Agent? agent, BasicCharacterObject character, Settings? settings)
         {
@@ -83,9 +92,9 @@ namespace FormationManager.Patches
                 return;
 
             Dictionary<int, int> allocatedCounts;
-            if (FormationAssignmentResolver.TryGetEvenSplitTargets(character, out int[] evenTargets))
+            if (FormationAssignmentResolver.TryGetEvenSplitTargets(character, out int[] evenTargets, settings))
                 allocatedCounts = AllocateEvenSplit(evenTargets, troopCount);
-            else if (FormationAssignmentResolver.TryGetWeightedCustomSurplus(character, troopCount, out var targets, out var weights, out int surplus))
+            else if (FormationAssignmentResolver.TryGetWeightedCustomSurplus(character, troopCount, out var targets, out var weights, out int surplus, settings))
                 allocatedCounts = AllocateWeightedCustomSplit(
                     targets,
                     weights,
@@ -97,8 +106,14 @@ namespace FormationManager.Patches
             if (allocatedCounts.Count == 0)
                 return;
 
+            DeploymentFormationClass deploymentClass = RefreshFormationPatch.MapToDeploymentClass(character);
             foreach (var allocation in allocatedCounts)
+            {
                 _formationCounts[allocation.Key] += allocation.Value;
+                int classIndex = (int)deploymentClass;
+                if (classIndex >= 0 && classIndex < 7)
+                    _formationClassCounts[allocation.Key, classIndex] += allocation.Value;
+            }
 
             if (agents == null)
                 return;

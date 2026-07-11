@@ -18,6 +18,8 @@ namespace FormationManager.Data
         private static Dictionary<string, int> _assignments = new();
         private static Dictionary<string, int> _secondaryAssignments = new();
         private static Dictionary<string, TroopDeploymentPlan> _deploymentPlans = new();
+        private static Dictionary<string, TroopDeploymentPlan> _archivedDeploymentPlans = new();
+        private static Dictionary<string, TroopDeploymentPlan> _pausedDeploymentPlans = new();
         private static bool _isDirty;
 
         private static string GetConfigDir()
@@ -36,6 +38,8 @@ namespace FormationManager.Data
             _assignments = new Dictionary<string, int>();
             _secondaryAssignments = new Dictionary<string, int>();
             _deploymentPlans = new Dictionary<string, TroopDeploymentPlan>();
+            _archivedDeploymentPlans = new Dictionary<string, TroopDeploymentPlan>();
+            _pausedDeploymentPlans = new Dictionary<string, TroopDeploymentPlan>();
             _isDirty = false;
 
             string path = GetFilePath(heroId);
@@ -52,6 +56,10 @@ namespace FormationManager.Data
                     _secondaryAssignments = data.SecondaryAssignments;
                 if (data?.DeploymentPlans != null)
                     _deploymentPlans = data.DeploymentPlans;
+                if (data?.ArchivedDeploymentPlans != null)
+                    _archivedDeploymentPlans = data.ArchivedDeploymentPlans;
+                if (data?.PausedDeploymentPlans != null)
+                    _pausedDeploymentPlans = data.PausedDeploymentPlans;
             }
             catch (Exception ex)
             {
@@ -59,6 +67,8 @@ namespace FormationManager.Data
                     $"[FormationManager] Failed to load assignment data: {ex.Message}",
                     new Color(0.9f, 0.3f, 0.3f)));
             }
+
+            SetAdvancedPlansEnabled(Settings.Instance?.ShowAdvancedFormationEditor ?? true);
         }
 
         public static void Save()
@@ -76,7 +86,9 @@ namespace FormationManager.Data
                 {
                     Assignments = _assignments,
                     SecondaryAssignments = _secondaryAssignments,
-                    DeploymentPlans = _deploymentPlans
+                    DeploymentPlans = _deploymentPlans,
+                    ArchivedDeploymentPlans = _archivedDeploymentPlans,
+                    PausedDeploymentPlans = _pausedDeploymentPlans
                 };
                 string json = JsonConvert.SerializeObject(model, Formatting.Indented);
                 File.WriteAllText(GetFilePath(_currentHeroId), json);
@@ -103,7 +115,6 @@ namespace FormationManager.Data
             }
 
             _assignments[troopId] = formationIndex;
-            _deploymentPlans.Remove(troopId);
             if (_secondaryAssignments.TryGetValue(troopId, out int secondaryIndex) && secondaryIndex == formationIndex)
                 _secondaryAssignments.Remove(troopId);
             _isDirty = true;
@@ -111,7 +122,7 @@ namespace FormationManager.Data
 
         public static void ClearAssignment(string troopId)
         {
-            if (_assignments.Remove(troopId) | _secondaryAssignments.Remove(troopId) | _deploymentPlans.Remove(troopId))
+            if (_assignments.Remove(troopId) | _secondaryAssignments.Remove(troopId))
                 _isDirty = true;
         }
 
@@ -157,7 +168,6 @@ namespace FormationManager.Data
             }
 
             _secondaryAssignments[troopId] = formationIndex;
-            _deploymentPlans.Remove(troopId);
             _isDirty = true;
         }
 
@@ -194,9 +204,9 @@ namespace FormationManager.Data
                 return;
             }
 
-            _assignments.Remove(troopId);
-            _secondaryAssignments.Remove(troopId);
             _deploymentPlans[troopId] = TroopDeploymentPlan.CreateEven(indices);
+            _archivedDeploymentPlans.Remove(troopId);
+            _pausedDeploymentPlans.Remove(troopId);
             _isDirty = true;
         }
 
@@ -216,17 +226,36 @@ namespace FormationManager.Data
                 : 0;
         }
 
+        /// <summary>Atomically replaces the saved custom plan with an editor draft.</summary>
+        public static void SaveCustomPlan(string troopId, IReadOnlyDictionary<int, int> targets, IReadOnlyDictionary<int, int> weights)
+        {
+            var plan = TroopDeploymentPlan.CreateCustom();
+            foreach (var pair in targets.Where(pair => IsValidFormationIndex(pair.Key) && pair.Value > 0))
+                plan.FormationTargets[pair.Key] = pair.Value;
+            foreach (var pair in weights.Where(pair => IsValidFormationIndex(pair.Key) && pair.Value > 0))
+                plan.FormationWeights[pair.Key] = Math.Min(100, pair.Value);
+
+            if (plan.IsValid())
+                _deploymentPlans[troopId] = plan;
+            else
+                _deploymentPlans.Remove(troopId);
+
+            _archivedDeploymentPlans.Remove(troopId);
+            _pausedDeploymentPlans.Remove(troopId);
+            _isDirty = true;
+        }
+
         /// <summary>
         /// Changes a formation target. The total of all targets is limited to the
         /// ready troops currently in this stack, so a plan cannot be overfilled while
         /// it is edited in the party screen.
         /// </summary>
-        public static void SetCustomTarget(string troopId, int formationIndex, int target, int readyTroopCount)
+        public static void SetCustomTarget(string troopId, int formationIndex, int target, int readyTroopCount, IEnumerable<int>? baselineFormationIndices = null)
         {
             if (!IsValidFormationIndex(formationIndex))
                 return;
 
-            var plan = GetOrCreateCustomPlan(troopId);
+            var plan = GetOrCreateCustomPlan(troopId, baselineFormationIndices);
             int otherTargets = plan.FormationTargets
                 .Where(pair => pair.Key != formationIndex && IsValidFormationIndex(pair.Key))
                 .Sum(pair => Math.Max(0, pair.Value));
@@ -237,19 +266,123 @@ namespace FormationManager.Data
         }
 
         /// <summary>Changes the surplus-distribution weight (0-100) for one formation.</summary>
-        public static void SetCustomWeight(string troopId, int formationIndex, int weight)
+        public static void SetCustomWeight(string troopId, int formationIndex, int weight, IEnumerable<int>? baselineFormationIndices = null)
         {
             if (!IsValidFormationIndex(formationIndex))
                 return;
 
-            var plan = GetOrCreateCustomPlan(troopId);
+            var plan = GetOrCreateCustomPlan(troopId, baselineFormationIndices);
             SetPlanValue(plan.FormationWeights, formationIndex, Math.Max(0, Math.Min(100, weight)));
+            FinishCustomPlanChange(troopId, plan);
+        }
+
+        /// <summary>Quickly enables a formation, preserving the current simple/default baseline.</summary>
+        public static void ActivateCustomFormation(string troopId, int formationIndex, IEnumerable<int> baselineFormationIndices)
+        {
+            if (!IsValidFormationIndex(formationIndex))
+                return;
+
+            var plan = GetOrCreateCustomPlan(troopId, baselineFormationIndices);
+            if (!plan.FormationTargets.ContainsKey(formationIndex) && !plan.FormationWeights.ContainsKey(formationIndex))
+                plan.FormationTargets[formationIndex] = 1;
+            FinishCustomPlanChange(troopId, plan);
+        }
+
+        /// <summary>Quickly disables one custom formation while preserving the remaining active slots.</summary>
+        public static void DeactivateCustomFormation(string troopId, int formationIndex, IEnumerable<int> baselineFormationIndices)
+        {
+            if (!IsValidFormationIndex(formationIndex))
+                return;
+
+            var plan = GetOrCreateCustomPlan(troopId, baselineFormationIndices);
+            plan.FormationTargets.Remove(formationIndex);
+            plan.FormationWeights.Remove(formationIndex);
             FinishCustomPlanChange(troopId, plan);
         }
 
         public static void ClearDeploymentPlan(string troopId)
         {
-            if (_deploymentPlans.Remove(troopId))
+            if (_deploymentPlans.TryGetValue(troopId, out var plan))
+            {
+                _archivedDeploymentPlans[troopId] = plan;
+                _deploymentPlans.Remove(troopId);
+                _isDirty = true;
+            }
+        }
+
+        public static bool CanRestoreDeploymentPlan(string troopId)
+            => TryGetArchivedDeploymentPlan(troopId, out var plan) && plan.IsValid();
+
+        /// <summary>Returns a detached copy for the editor to stage before saving.</summary>
+        public static bool TryGetArchivedDeploymentPlanCopy(string troopId, out TroopDeploymentPlan? planCopy)
+        {
+            planCopy = null;
+            if (!TryGetArchivedDeploymentPlan(troopId, out var plan))
+                return false;
+
+            NormalizeCustomPlan(plan);
+            if (!plan.IsValid())
+                return false;
+
+            planCopy = new TroopDeploymentPlan
+            {
+                Mode = plan.Mode,
+                FormationIndices = plan.FormationIndices.ToList(),
+                FormationCounts = plan.FormationCounts.ToDictionary(pair => pair.Key, pair => pair.Value),
+                FormationTargets = plan.FormationTargets.ToDictionary(pair => pair.Key, pair => pair.Value),
+                FormationWeights = plan.FormationWeights.ToDictionary(pair => pair.Key, pair => pair.Value)
+            };
+            return true;
+        }
+
+        public static bool RestoreDeploymentPlan(string troopId)
+        {
+            if (_deploymentPlans.ContainsKey(troopId) || !TryGetArchivedDeploymentPlan(troopId, out var plan))
+                return false;
+
+            NormalizeCustomPlan(plan);
+            if (!plan.IsValid())
+            {
+                _archivedDeploymentPlans.Remove(troopId);
+                _pausedDeploymentPlans.Remove(troopId);
+                _isDirty = true;
+                return false;
+            }
+
+            _deploymentPlans[troopId] = plan;
+            _archivedDeploymentPlans.Remove(troopId);
+            _pausedDeploymentPlans.Remove(troopId);
+            _isDirty = true;
+            return true;
+        }
+
+        private static bool TryGetArchivedDeploymentPlan(string troopId, out TroopDeploymentPlan plan)
+        {
+            if (_archivedDeploymentPlans.TryGetValue(troopId, out plan!))
+                return true;
+
+            return _pausedDeploymentPlans.TryGetValue(troopId, out plan!);
+        }
+
+        /// <summary>
+        /// Moves active advanced plans into a separate persisted pause archive when
+        /// the feature is disabled. Enabling the feature only makes the editor
+        /// available again; each paused plan must be restored explicitly.
+        /// This is intentionally separate from the per-troop Clear/Restore archive.
+        /// </summary>
+        public static void SetAdvancedPlansEnabled(bool enabled)
+        {
+            bool changed = false;
+            if (!enabled)
+            {
+                foreach (var pair in _deploymentPlans.ToList())
+                {
+                    _pausedDeploymentPlans[pair.Key] = pair.Value;
+                    _deploymentPlans.Remove(pair.Key);
+                    changed = true;
+                }
+            }
+            if (changed)
                 _isDirty = true;
         }
 
@@ -258,7 +391,7 @@ namespace FormationManager.Data
         private static bool IsValidFormationIndex(int formationIndex)
             => formationIndex >= 0 && formationIndex <= 7;
 
-        private static TroopDeploymentPlan GetOrCreateCustomPlan(string troopId)
+        private static TroopDeploymentPlan GetOrCreateCustomPlan(string troopId, IEnumerable<int>? baselineFormationIndices = null)
         {
             TroopDeploymentPlan plan;
             if (TryGetDeploymentPlan(troopId, out var existingPlan) && existingPlan!.Mode == TroopDeploymentPlanMode.Custom)
@@ -277,11 +410,17 @@ namespace FormationManager.Data
             else
             {
                 plan = TroopDeploymentPlan.CreateCustom();
+                int[] explicitAssignments = GetAssignments(troopId);
+                foreach (int index in (explicitAssignments.Length > 0 ? explicitAssignments : baselineFormationIndices ?? Enumerable.Empty<int>())
+                    .Where(IsValidFormationIndex).Distinct())
+                {
+                    plan.FormationTargets[index] = 1;
+                }
                 _deploymentPlans[troopId] = plan;
             }
 
-            _assignments.Remove(troopId);
-            _secondaryAssignments.Remove(troopId);
+            _archivedDeploymentPlans.Remove(troopId);
+            _pausedDeploymentPlans.Remove(troopId);
             return plan;
         }
 
@@ -346,6 +485,8 @@ namespace FormationManager.Data
             public Dictionary<string, int> Assignments { get; set; } = new();
             public Dictionary<string, int> SecondaryAssignments { get; set; } = new();
             public Dictionary<string, TroopDeploymentPlan> DeploymentPlans { get; set; } = new();
+            public Dictionary<string, TroopDeploymentPlan> ArchivedDeploymentPlans { get; set; } = new();
+            public Dictionary<string, TroopDeploymentPlan> PausedDeploymentPlans { get; set; } = new();
         }
     }
 

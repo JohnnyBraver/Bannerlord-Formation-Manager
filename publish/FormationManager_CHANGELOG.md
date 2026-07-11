@@ -1,5 +1,19 @@
 # Changelog - Formation Manager
 
+## [v0.4.0] - 2026-07-11
+
+### Added
+- **Advanced Formation Plans**: Create a saved per-troop plan across all eight formations, with direct **Target** counts and **Weight** values for surplus troops.
+- **Expanded Party Editor**: Open a troop row to view its eight OOB-style formation cards, predicted assignment, target, and weight. Inactive formations can be added directly from the editor.
+- **Draft, Save, Restore, and Autosave Controls**: Advanced changes remain a draft until saved by default. Clear and Restore are staged actions, and optional autosave commits every advanced edit immediately.
+- **Advanced Plan Toggle**: Disable advanced plans from MCM to hide their editor and place active plans in a recoverable archive.
+- **Native Mixed OOB Cards**: Supports Bannerlord's compatible infantry+ranged and cavalry+horse-archer formation cards.
+
+### Changed
+- **Precise OOB Placement**: Saved formation plans reapply exact troop-stack placements after Bannerlord completes its native class-pool setup, preserving configured splits instead of substituting other troops of the same class.
+- **Simple-to-Advanced Baseline**: Until an advanced plan is saved, the editor follows the troop's current simple one/two-formation assignment. A saved advanced plan takes ownership and replaces the simple row controls with an `A` indicator.
+- **Short-Stack Policy**: Custom plans can prioritize weights in under-strength stacks, or use the default one-per-active-formation distribution before weighted surplus.
+
 ## [v0.3.0] - 2026-07-10
 
 ### Added

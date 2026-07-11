@@ -1,4 +1,5 @@
 using System;
+using System.Collections.Generic;
 using System.ComponentModel;
 using System.Linq;
 using System.Runtime.CompilerServices;
@@ -21,18 +22,29 @@ namespace FormationManager.UI
     {
         private static readonly string[] Labels = { "—", "I", "II", "III", "IV", "V", "VI", "VII", "VIII" };
         private static readonly ConditionalWeakTable<PartyCharacterVM, PartyCharacterVMMixin> Instances = new();
+        private static readonly List<WeakReference<PartyCharacterVMMixin>> ActiveMixins = new();
+        private static bool _autosaveHintShown;
+        private readonly string[] _targetTexts = new string[8];
         private readonly string[] _assignedTexts = new string[8];
         private readonly string[] _weightTexts = new string[8];
+        private readonly bool[] _editorFormationActive = new bool[8];
+        private readonly int[] _draftTargets = new int[8];
+        private readonly int[] _draftWeights = new int[8];
         private string _formationLabel = "—";
         private string _secondaryFormationLabel = "+";
         private bool _isFormationBadgeVisible;
         private bool _isSecondaryFormationBadgeVisible;
         private int _selectedCustomFormationIndex = -1;
+        private bool _draftInitialized;
+        private bool _draftDirty;
+        private bool _draftClearRequested;
 
         public PartyCharacterVMMixin(PartyCharacterVM vm) : base(vm)
         {
             Instances.Remove(vm);
             Instances.Add(vm, this);
+            ActiveMixins.RemoveAll(reference => !reference.TryGetTarget(out var existing) || ReferenceEquals(existing, this));
+            ActiveMixins.Add(new WeakReference<PartyCharacterVMMixin>(this));
             vm.PropertyChanged += OnViewModelPropertyChanged;
             Refresh();
         }
@@ -66,7 +78,13 @@ namespace FormationManager.UI
         }
 
         [DataSourceProperty] public bool IsCustomEditorVisible => IsFormationBadgeVisible;
-        [DataSourceProperty] public bool IsFormationEditorVisible => IsFormationBadgeVisible && (ViewModel?.IsSelected ?? false);
+        [DataSourceProperty] public bool IsFormationEditorVisible => IsFormationBadgeVisible &&
+            (Settings.Instance?.ShowAdvancedFormationEditor ?? true) && (ViewModel?.IsSelected ?? false);
+        [DataSourceProperty] public bool HasAdvancedFormationPlan => AdvancedPlansEnabled && ViewModel?.Character != null &&
+            FormationAssignmentStore.TryGetDeploymentPlan(ViewModel.Character.StringId, out _);
+        [DataSourceProperty] public bool CanRestoreAdvancedFormationPlan => AdvancedPlansEnabled && ViewModel?.Character != null &&
+            FormationAssignmentStore.CanRestoreDeploymentPlan(ViewModel.Character.StringId);
+        [DataSourceProperty] public bool HasUnsavedAdvancedFormationChanges => _draftDirty;
         [DataSourceProperty] public bool IsFormationEditorSliderVisible => IsFormationEditorVisible && _selectedCustomFormationIndex >= 0;
         [DataSourceProperty] public bool IsCustomFormationSelected => _selectedCustomFormationIndex >= 0;
         [DataSourceProperty] public bool IsFormation1Selected => _selectedCustomFormationIndex == 0;
@@ -77,6 +95,30 @@ namespace FormationManager.UI
         [DataSourceProperty] public bool IsFormation6Selected => _selectedCustomFormationIndex == 5;
         [DataSourceProperty] public bool IsFormation7Selected => _selectedCustomFormationIndex == 6;
         [DataSourceProperty] public bool IsFormation8Selected => _selectedCustomFormationIndex == 7;
+        [DataSourceProperty] public bool IsFormation1Active => _editorFormationActive[0];
+        [DataSourceProperty] public bool IsFormation2Active => _editorFormationActive[1];
+        [DataSourceProperty] public bool IsFormation3Active => _editorFormationActive[2];
+        [DataSourceProperty] public bool IsFormation4Active => _editorFormationActive[3];
+        [DataSourceProperty] public bool IsFormation5Active => _editorFormationActive[4];
+        [DataSourceProperty] public bool IsFormation6Active => _editorFormationActive[5];
+        [DataSourceProperty] public bool IsFormation7Active => _editorFormationActive[6];
+        [DataSourceProperty] public bool IsFormation8Active => _editorFormationActive[7];
+        [DataSourceProperty] public string Formation1ButtonLabel => GetFormationButtonLabel(0, "I");
+        [DataSourceProperty] public string Formation2ButtonLabel => GetFormationButtonLabel(1, "II");
+        [DataSourceProperty] public string Formation3ButtonLabel => GetFormationButtonLabel(2, "III");
+        [DataSourceProperty] public string Formation4ButtonLabel => GetFormationButtonLabel(3, "IV");
+        [DataSourceProperty] public string Formation5ButtonLabel => GetFormationButtonLabel(4, "V");
+        [DataSourceProperty] public string Formation6ButtonLabel => GetFormationButtonLabel(5, "VI");
+        [DataSourceProperty] public string Formation7ButtonLabel => GetFormationButtonLabel(6, "VII");
+        [DataSourceProperty] public string Formation8ButtonLabel => GetFormationButtonLabel(7, "VIII");
+        [DataSourceProperty] public string Formation1TargetText => _targetTexts[0];
+        [DataSourceProperty] public string Formation2TargetText => _targetTexts[1];
+        [DataSourceProperty] public string Formation3TargetText => _targetTexts[2];
+        [DataSourceProperty] public string Formation4TargetText => _targetTexts[3];
+        [DataSourceProperty] public string Formation5TargetText => _targetTexts[4];
+        [DataSourceProperty] public string Formation6TargetText => _targetTexts[5];
+        [DataSourceProperty] public string Formation7TargetText => _targetTexts[6];
+        [DataSourceProperty] public string Formation8TargetText => _targetTexts[7];
         [DataSourceProperty] public string Formation1AssignedText => _assignedTexts[0];
         [DataSourceProperty] public string Formation2AssignedText => _assignedTexts[1];
         [DataSourceProperty] public string Formation3AssignedText => _assignedTexts[2];
@@ -94,7 +136,9 @@ namespace FormationManager.UI
         [DataSourceProperty] public string Formation7WeightText => _weightTexts[6];
         [DataSourceProperty] public string Formation8WeightText => _weightTexts[7];
 
-        [DataSourceProperty] public string SelectedFormationLabel => _selectedCustomFormationIndex < 0 ? "Select a formation card to edit it" : $"Formation {Labels[_selectedCustomFormationIndex + 1]}";
+        [DataSourceProperty] public string SelectedFormationLabel => _selectedCustomFormationIndex < 0
+            ? "Select an active formation, or click + Add formation"
+            : $"Formation {Labels[_selectedCustomFormationIndex + 1]} — click its numeral again to remove";
         [DataSourceProperty] public string SelectedFormationTargetText => $"Target: {SelectedFormationTarget}";
         [DataSourceProperty] public string SelectedFormationWeightText => $"Weight: {SelectedFormationWeight}";
         [DataSourceProperty] public int SelectedFormationTargetMax => GetSelectedTargetMaximum();
@@ -102,14 +146,14 @@ namespace FormationManager.UI
         [DataSourceProperty]
         public int SelectedFormationTarget
         {
-            get => GetSelectedValue(FormationAssignmentStore.GetCustomTarget);
+            get => _selectedCustomFormationIndex < 0 ? 0 : _draftTargets[_selectedCustomFormationIndex];
             set => SetSelectedTarget(value);
         }
 
         [DataSourceProperty]
         public int SelectedFormationWeight
         {
-            get => GetSelectedValue(FormationAssignmentStore.GetCustomWeight);
+            get => _selectedCustomFormationIndex < 0 ? 0 : _draftWeights[_selectedCustomFormationIndex];
             set => SetSelectedWeight(value);
         }
 
@@ -118,7 +162,7 @@ namespace FormationManager.UI
         {
             var character = ViewModel?.Character;
             if (character == null) return;
-            if (FormationAssignmentStore.TryGetDeploymentPlan(character.StringId, out _))
+            if (AdvancedPlansEnabled && FormationAssignmentStore.TryGetDeploymentPlan(character.StringId, out _))
             {
                 ShowCustomPlanHint();
                 return;
@@ -137,7 +181,7 @@ namespace FormationManager.UI
         {
             var character = ViewModel?.Character;
             if (character == null) return;
-            if (FormationAssignmentStore.TryGetDeploymentPlan(character.StringId, out _))
+            if (AdvancedPlansEnabled && FormationAssignmentStore.TryGetDeploymentPlan(character.StringId, out _))
             {
                 ShowCustomPlanHint();
                 return;
@@ -152,7 +196,7 @@ namespace FormationManager.UI
         {
             var character = ViewModel?.Character;
             if (character == null) return;
-            if (FormationAssignmentStore.TryGetDeploymentPlan(character.StringId, out _))
+            if (AdvancedPlansEnabled && FormationAssignmentStore.TryGetDeploymentPlan(character.StringId, out _))
             {
                 FormationAssignmentStore.ClearDeploymentPlan(character.StringId);
                 FormationAssignmentStore.Save();
@@ -181,7 +225,7 @@ namespace FormationManager.UI
         {
             var character = ViewModel?.Character;
             if (character == null) return;
-            if (FormationAssignmentStore.TryGetDeploymentPlan(character.StringId, out _))
+            if (AdvancedPlansEnabled && FormationAssignmentStore.TryGetDeploymentPlan(character.StringId, out _))
                 FormationAssignmentStore.ClearDeploymentPlan(character.StringId);
             else
                 FormationAssignmentStore.ClearSecondaryAssignment(character.StringId);
@@ -190,13 +234,54 @@ namespace FormationManager.UI
         }
 
         [DataSourceMethod]
-        public void ExecuteEnableEvenSplit()
+        public void ExecuteClearAdvancedFormationPlan()
+        {
+            if (ViewModel?.Character == null) return;
+            EnsureDraftInitialized();
+            Array.Clear(_draftTargets, 0, _draftTargets.Length);
+            Array.Clear(_draftWeights, 0, _draftWeights.Length);
+            _draftClearRequested = true;
+            _selectedCustomFormationIndex = -1;
+            MarkDraftDirty();
+            RefreshEditorValues();
+        }
+
+        [DataSourceMethod]
+        public void ExecuteRestoreAdvancedFormationPlan()
         {
             var character = ViewModel?.Character;
             if (character == null) return;
-            FormationAssignmentStore.SetEvenSplit(character.StringId, Enumerable.Range(0, 8));
+            if (!FormationAssignmentStore.TryGetArchivedDeploymentPlanCopy(character.StringId, out var plan))
+                return;
+
+            LoadDraft(plan!);
+            _draftClearRequested = false;
             _selectedCustomFormationIndex = -1;
+            MarkDraftDirty();
+            RefreshEditorValues();
+        }
+
+        [DataSourceMethod]
+        public void ExecuteSaveAdvancedFormationPlan()
+        {
+            var character = ViewModel?.Character;
+            if (character == null || !_draftInitialized || !_draftDirty) return;
+
+            if (_draftClearRequested)
+            {
+                FormationAssignmentStore.ClearDeploymentPlan(character.StringId);
+            }
+            else
+            {
+                FormationAssignmentStore.SaveCustomPlan(
+                    character.StringId,
+                    Enumerable.Range(0, 8).ToDictionary(index => index, index => _draftTargets[index]),
+                    Enumerable.Range(0, 8).ToDictionary(index => index, index => _draftWeights[index]));
+            }
             FormationAssignmentStore.Save();
+            _draftClearRequested = false;
+            _draftDirty = false;
+            OnPropertyChanged(nameof(HasUnsavedAdvancedFormationChanges));
             Refresh();
         }
 
@@ -211,40 +296,52 @@ namespace FormationManager.UI
 
         private void SelectCustomFormation(int formationIndex)
         {
+            if (!_editorFormationActive[formationIndex])
+            {
+                SelectOrActivateFormation(formationIndex);
+                return;
+            }
+            if (_selectedCustomFormationIndex == formationIndex)
+            {
+                DeactivateFormation(formationIndex);
+                return;
+            }
             _selectedCustomFormationIndex = formationIndex;
             NotifyEditorSelectionChanged();
         }
 
+        private string GetFormationButtonLabel(int formationIndex, string numeral)
+            => !_editorFormationActive[formationIndex] ? "+" : _selectedCustomFormationIndex == formationIndex ? "×" : numeral;
+
         private void SetSelectedTarget(int value)
         {
-            var character = ViewModel?.Character;
-            if (character == null || _selectedCustomFormationIndex < 0) return;
-            FormationAssignmentStore.SetCustomTarget(character.StringId, _selectedCustomFormationIndex, value, GetReadyTroopCount());
-            FormationAssignmentStore.Save();
+            if (_selectedCustomFormationIndex < 0) return;
+            EnsureDraftInitialized();
+            int next = Math.Max(0, Math.Min(value, GetSelectedTargetMaximum()));
+            if (_draftTargets[_selectedCustomFormationIndex] == next) return;
+            _draftTargets[_selectedCustomFormationIndex] = next;
+            UpdateClearRequestedFromDraft();
+            MarkDraftDirty();
             RefreshEditorValues();
         }
 
         private void SetSelectedWeight(int value)
         {
-            var character = ViewModel?.Character;
-            if (character == null || _selectedCustomFormationIndex < 0) return;
-            FormationAssignmentStore.SetCustomWeight(character.StringId, _selectedCustomFormationIndex, value);
-            FormationAssignmentStore.Save();
+            if (_selectedCustomFormationIndex < 0) return;
+            EnsureDraftInitialized();
+            int next = Math.Max(0, Math.Min(100, value));
+            if (_draftWeights[_selectedCustomFormationIndex] == next) return;
+            _draftWeights[_selectedCustomFormationIndex] = next;
+            UpdateClearRequestedFromDraft();
+            MarkDraftDirty();
             RefreshEditorValues();
-        }
-
-        private int GetSelectedValue(Func<string, int, int> getter)
-        {
-            var character = ViewModel?.Character;
-            return character == null || _selectedCustomFormationIndex < 0 ? 0 : getter(character.StringId, _selectedCustomFormationIndex);
         }
 
         private int GetSelectedTargetMaximum()
         {
-            var character = ViewModel?.Character;
-            if (character == null || _selectedCustomFormationIndex < 0) return 0;
+            if (_selectedCustomFormationIndex < 0) return 0;
             int otherTargets = Enumerable.Range(0, 8).Where(index => index != _selectedCustomFormationIndex)
-                .Sum(index => FormationAssignmentStore.GetCustomTarget(character.StringId, index));
+                .Sum(index => _draftTargets[index]);
             return Math.Max(0, GetReadyTroopCount() - otherTargets);
         }
 
@@ -262,8 +359,161 @@ namespace FormationManager.UI
             return 0;
         }
 
+        [DataSourceMethod] public void ExecuteSelectOrActivateFormation1() => SelectOrActivateFormation(0);
+        [DataSourceMethod] public void ExecuteSelectOrActivateFormation2() => SelectOrActivateFormation(1);
+        [DataSourceMethod] public void ExecuteSelectOrActivateFormation3() => SelectOrActivateFormation(2);
+        [DataSourceMethod] public void ExecuteSelectOrActivateFormation4() => SelectOrActivateFormation(3);
+        [DataSourceMethod] public void ExecuteSelectOrActivateFormation5() => SelectOrActivateFormation(4);
+        [DataSourceMethod] public void ExecuteSelectOrActivateFormation6() => SelectOrActivateFormation(5);
+        [DataSourceMethod] public void ExecuteSelectOrActivateFormation7() => SelectOrActivateFormation(6);
+        [DataSourceMethod] public void ExecuteSelectOrActivateFormation8() => SelectOrActivateFormation(7);
+        [DataSourceMethod] public void ExecuteDeactivateFormation1() => DeactivateFormation(0);
+        [DataSourceMethod] public void ExecuteDeactivateFormation2() => DeactivateFormation(1);
+        [DataSourceMethod] public void ExecuteDeactivateFormation3() => DeactivateFormation(2);
+        [DataSourceMethod] public void ExecuteDeactivateFormation4() => DeactivateFormation(3);
+        [DataSourceMethod] public void ExecuteDeactivateFormation5() => DeactivateFormation(4);
+        [DataSourceMethod] public void ExecuteDeactivateFormation6() => DeactivateFormation(5);
+        [DataSourceMethod] public void ExecuteDeactivateFormation7() => DeactivateFormation(6);
+        [DataSourceMethod] public void ExecuteDeactivateFormation8() => DeactivateFormation(7);
+
+        private void SelectOrActivateFormation(int formationIndex)
+        {
+            if (ViewModel?.Character == null) return;
+            EnsureDraftInitialized();
+            if (!_editorFormationActive[formationIndex])
+            {
+                _draftTargets[formationIndex] = 1;
+                _draftWeights[formationIndex] = 0;
+                _draftClearRequested = false;
+                MarkDraftDirty();
+                RefreshEditorValues();
+            }
+            _selectedCustomFormationIndex = formationIndex;
+            NotifyEditorSelectionChanged();
+        }
+
+        private void DeactivateFormation(int formationIndex)
+        {
+            if (ViewModel?.Character == null || !_editorFormationActive[formationIndex]) return;
+            EnsureDraftInitialized();
+            _draftTargets[formationIndex] = 0;
+            _draftWeights[formationIndex] = 0;
+            UpdateClearRequestedFromDraft();
+            MarkDraftDirty();
+            if (_selectedCustomFormationIndex == formationIndex) _selectedCustomFormationIndex = -1;
+            RefreshEditorValues();
+        }
+
+        private int[] GetBaselineFormationIndices()
+        {
+            var character = ViewModel?.Character;
+            if (character == null) return Array.Empty<int>();
+            int[] simpleAssignments = FormationAssignmentStore.GetAssignments(character.StringId);
+            return simpleAssignments.Length > 0
+                ? simpleAssignments
+                : new[] { FormationAssignmentResolver.GetDefaultFormationIndex(character, Settings.Instance) };
+        }
+
+        private int[] GetEditorActiveFormationIndices()
+        {
+            EnsureDraftInitialized();
+            return Enumerable.Range(0, 8).Where(index => _draftTargets[index] > 0 || _draftWeights[index] > 0).ToArray();
+        }
+
+        private void LoadDraft(TroopDeploymentPlan plan)
+        {
+            Array.Clear(_draftTargets, 0, _draftTargets.Length);
+            Array.Clear(_draftWeights, 0, _draftWeights.Length);
+            if (plan.Mode == TroopDeploymentPlanMode.Custom)
+            {
+                foreach (var pair in plan.FormationTargets.Where(pair => pair.Key >= 0 && pair.Key <= 7))
+                    _draftTargets[pair.Key] = pair.Value;
+                foreach (var pair in plan.FormationWeights.Where(pair => pair.Key >= 0 && pair.Key <= 7))
+                    _draftWeights[pair.Key] = pair.Value;
+            }
+            else
+            {
+                foreach (int index in plan.FormationIndices.Where(index => index >= 0 && index <= 7))
+                    _draftWeights[index] = 1;
+            }
+
+            _draftInitialized = true;
+        }
+
+        private void UpdateClearRequestedFromDraft()
+        {
+            _draftClearRequested = !_draftTargets.Any(value => value > 0) && !_draftWeights.Any(value => value > 0);
+        }
+
+        private void EnsureDraftInitialized()
+        {
+            if (_draftInitialized)
+                return;
+
+            Array.Clear(_draftTargets, 0, _draftTargets.Length);
+            Array.Clear(_draftWeights, 0, _draftWeights.Length);
+            var character = ViewModel?.Character;
+            if (character != null && FormationAssignmentStore.TryGetDeploymentPlan(character.StringId, out var plan))
+            {
+                if (plan!.Mode == TroopDeploymentPlanMode.Custom)
+                {
+                    foreach (var pair in plan.FormationTargets.Where(pair => pair.Key >= 0 && pair.Key <= 7))
+                        _draftTargets[pair.Key] = pair.Value;
+                    foreach (var pair in plan.FormationWeights.Where(pair => pair.Key >= 0 && pair.Key <= 7))
+                        _draftWeights[pair.Key] = pair.Value;
+                }
+                else
+                {
+                    foreach (int index in plan.FormationIndices.Where(index => index >= 0 && index <= 7))
+                        _draftWeights[index] = 1;
+                }
+            }
+            else if (character != null && !FormationAssignmentStore.CanRestoreDeploymentPlan(character.StringId))
+            {
+                foreach (int index in GetBaselineFormationIndices())
+                    _draftTargets[index] = 1;
+            }
+
+            _draftInitialized = true;
+            _draftDirty = false;
+            _draftClearRequested = false;
+            OnPropertyChanged(nameof(HasUnsavedAdvancedFormationChanges));
+        }
+
+        private void MarkDraftDirty()
+        {
+            if (!_draftDirty)
+            {
+                _draftDirty = true;
+                OnPropertyChanged(nameof(HasUnsavedAdvancedFormationChanges));
+            }
+
+            if (Settings.Instance?.AutosaveAdvancedFormationPlans ?? false)
+            {
+                ExecuteSaveAdvancedFormationPlan();
+            }
+            else if (!_autosaveHintShown)
+            {
+                _autosaveHintShown = true;
+                InformationManager.DisplayMessage(new InformationMessage(
+                    "[Formation Manager] Changes are drafts. Enable 'Autosave Advanced Formation Plans' in Settings > Multi-Formation Splits to save each edit immediately."));
+            }
+        }
+
+        private void ResetDraft()
+        {
+            Array.Clear(_draftTargets, 0, _draftTargets.Length);
+            Array.Clear(_draftWeights, 0, _draftWeights.Length);
+            _draftInitialized = false;
+            _draftDirty = false;
+            _draftClearRequested = false;
+            OnPropertyChanged(nameof(HasUnsavedAdvancedFormationChanges));
+        }
+
         private static void ShowCustomPlanHint()
-            => InformationManager.DisplayMessage(new InformationMessage("[Formation Manager] Custom formation allocation: expand this troop row to edit it. Press X to clear it."));
+            => InformationManager.DisplayMessage(new InformationMessage("[Formation Manager] Advanced formation allocation: expand this troop row to edit it or clear it."));
+
+        private static bool AdvancedPlansEnabled => Settings.Instance?.ShowAdvancedFormationEditor ?? true;
 
         private void Refresh()
         {
@@ -280,31 +530,54 @@ namespace FormationManager.UI
             }
 
             string troopId = ViewModel.Character.StringId;
-            bool hasDeploymentPlan = FormationAssignmentStore.TryGetDeploymentPlan(troopId, out _);
+            bool hasDeploymentPlan = AdvancedPlansEnabled && FormationAssignmentStore.TryGetDeploymentPlan(troopId, out _);
+            // Until an advanced draft is actually changed and saved, the simple
+            // assignment remains its source of truth. Refreshing here prevents a
+            // previously opened editor from holding an obsolete copied baseline.
+            if (!hasDeploymentPlan && !_draftDirty)
+                ResetDraft();
+
             int primary = FormationAssignmentStore.GetAssignment(troopId);
             int secondary = FormationAssignmentStore.GetSecondaryAssignment(troopId);
-            FormationLabel = hasDeploymentPlan ? "C" : primary is >= 0 and <= 7 ? Labels[primary + 1] : "—";
-            SecondaryFormationLabel = hasDeploymentPlan ? "X" : secondary is >= 0 and <= 7 ? Labels[secondary + 1] : "+";
-            IsSecondaryFormationBadgeVisible = IsFormationBadgeVisible && (primary >= 0 || hasDeploymentPlan);
+            FormationLabel = hasDeploymentPlan ? "A" : primary is >= 0 and <= 7 ? Labels[primary + 1] : "—";
+            SecondaryFormationLabel = secondary is >= 0 and <= 7 ? Labels[secondary + 1] : "+";
+            IsSecondaryFormationBadgeVisible = IsFormationBadgeVisible && !hasDeploymentPlan && primary >= 0;
+            OnPropertyChanged(nameof(HasAdvancedFormationPlan));
+            OnPropertyChanged(nameof(CanRestoreAdvancedFormationPlan));
             RefreshEditorValues();
         }
 
         private void RefreshEditorValues()
         {
             var character = ViewModel?.Character;
+            EnsureDraftInitialized();
             var allocation = character == null
                 ? new System.Collections.Generic.Dictionary<int, int>()
-                : FormationAssignmentResolver.GetAllocatedFormationCounts(character, GetReadyTroopCount(), Settings.Instance);
+                : FormationAssignmentResolver.GetAllocatedCustomPlanCounts(
+                    character,
+                    GetReadyTroopCount(),
+                    Enumerable.Range(0, 8).ToDictionary(index => index, index => _draftTargets[index]),
+                    Enumerable.Range(0, 8).ToDictionary(index => index, index => _draftWeights[index]),
+                    Settings.Instance);
 
+            int[] activeFormationIndices = GetEditorActiveFormationIndices();
             for (int i = 0; i < 8; i++)
             {
+                _editorFormationActive[i] = activeFormationIndices.Contains(i);
                 int assigned = allocation.TryGetValue(i, out int count) ? count : 0;
-                int weight = character == null ? 0 : FormationAssignmentStore.GetCustomWeight(character.StringId, i);
-                _assignedTexts[i] = $"Assigned {assigned}";
-                _weightTexts[i] = $"Weight {weight}";
+                int target = _draftTargets[i];
+                int weight = _draftWeights[i];
+                _targetTexts[i] = _editorFormationActive[i] ? $"Target {target}" : string.Empty;
+                _assignedTexts[i] = _editorFormationActive[i] ? $"Assigned {assigned}" : "+ Add formation";
+                _weightTexts[i] = _editorFormationActive[i] ? $"Weight {weight}" : string.Empty;
+                OnPropertyChanged($"IsFormation{i + 1}Active");
+                OnPropertyChanged($"Formation{i + 1}ButtonLabel");
+                OnPropertyChanged($"Formation{i + 1}TargetText");
                 OnPropertyChanged($"Formation{i + 1}AssignedText");
                 OnPropertyChanged($"Formation{i + 1}WeightText");
             }
+            if (_selectedCustomFormationIndex >= 0 && !_editorFormationActive[_selectedCustomFormationIndex])
+                _selectedCustomFormationIndex = -1;
             NotifyEditorSelectionChanged();
         }
 
@@ -331,8 +604,15 @@ namespace FormationManager.UI
 
         internal static void NotifySelectionChanged(PartyCharacterVM viewModel)
         {
-            if (Instances.TryGetValue(viewModel, out var mixin))
-                mixin.HandleSelectionChanged();
+            // Bannerlord only invokes ExecuteSetSelected on the newly selected row,
+            // while it silently clears every other row. Refresh all live mixins so
+            // sibling editor panels follow the same one-open-row rule as vanilla.
+            ActiveMixins.RemoveAll(reference => !reference.TryGetTarget(out _));
+            foreach (var reference in ActiveMixins)
+            {
+                if (reference.TryGetTarget(out var mixin))
+                    mixin.HandleSelectionChanged();
+            }
         }
 
         private void HandleSelectionChanged()
@@ -353,6 +633,7 @@ namespace FormationManager.UI
                 ViewModel.PropertyChanged -= OnViewModelPropertyChanged;
                 Instances.Remove(ViewModel);
             }
+            ActiveMixins.RemoveAll(reference => !reference.TryGetTarget(out var mixin) || ReferenceEquals(mixin, this));
         }
     }
 }

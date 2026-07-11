@@ -1,11 +1,14 @@
 using MCM.Abstractions.Attributes;
 using MCM.Abstractions.Attributes.v2;
 using MCM.Abstractions.Base.Global;
+using FormationManager.Data;
 
 namespace FormationManager
 {
     public class Settings : AttributeGlobalSettings<Settings>
     {
+        private bool _showAdvancedFormationEditor = true;
+
         public override string Id => "FormationManager";
         public override string DisplayName => "Stop Shuffling, You Fools - Formation Manager";
         public override string FolderName => "FormationManager";
@@ -180,5 +183,32 @@ namespace FormationManager
             Order = 0)]
         [SettingPropertyGroup("Multi-Formation Splits")]
         public bool PrioritizeWeightsInSmallStacks { get; set; } = false;
+
+        [SettingPropertyBool(
+            "Enable Advanced Formation Plans",
+            RequireRestart = false,
+            HintText = "Show and apply advanced Target/Weight plans. Turning this off completely hides the advanced panel and archives every active plan. Turning it back on exposes the editor, but archived plans remain inactive until restored individually.",
+            Order = 1)]
+        [SettingPropertyGroup("Multi-Formation Splits")]
+        public bool ShowAdvancedFormationEditor
+        {
+            get => _showAdvancedFormationEditor;
+            set
+            {
+                if (_showAdvancedFormationEditor == value)
+                    return;
+
+                _showAdvancedFormationEditor = value;
+                FormationAssignmentStore.SetAdvancedPlansEnabled(value);
+            }
+        }
+
+        [SettingPropertyBool(
+            "Autosave Advanced Formation Plans",
+            RequireRestart = false,
+            HintText = "Save advanced formation edits immediately when targets, weights, or active formations change. Disabled by default so edits remain a draft until the Save button is pressed.",
+            Order = 2)]
+        [SettingPropertyGroup("Multi-Formation Splits")]
+        public bool AutosaveAdvancedFormationPlans { get; set; } = false;
     }
 }

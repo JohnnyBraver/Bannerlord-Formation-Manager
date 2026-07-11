@@ -1,4 +1,5 @@
 using System;
+using System.Collections.Generic;
 using System.Linq;
 using HarmonyLib;
 using TaleWorlds.Core;
@@ -37,6 +38,13 @@ namespace FormationManager.Patches
                 return;
 
             if (formation == null)
+                return;
+
+            // The initialization patch uses Bannerlord's dedicated combined card
+            // values for Infantry+Ranged and Cavalry+HorseArcher. Do not replace
+            // those explicit requests with the first matching roster class.
+            if (overriddenClass == DeploymentFormationClass.InfantryAndRanged ||
+                overriddenClass == DeploymentFormationClass.CavalryAndHorseArcher)
                 return;
 
             int idx = formation.Index;
@@ -163,6 +171,44 @@ namespace FormationManager.Patches
             return GetVanillaDefaultClass(formationIndex);
         }
 
+        /// <summary>
+        /// Returns the native two-class card layout for the agents already placed
+        /// in a formation. Bannerlord supports foot (infantry+ranged) and mounted
+        /// (cavalry+horse archer) mixed cards; cross-family mixes retain the legacy
+        /// single-class fallback until their semantics are designed separately.
+        /// </summary>
+        public static DeploymentFormationClass[] GetCompatibleFormationClasses(int formationIndex, Team team)
+        {
+            var assignedClasses = team.ActiveAgents
+                .Where(agent => agent != null && agent.IsHuman && !agent.IsMount && !agent.IsMainAgent &&
+                                agent.Formation != null && agent.Formation.Index == formationIndex && agent.Character != null)
+                .Select(agent => MapToDeploymentClass(agent.Character))
+                .Where(deploymentClass => deploymentClass != DeploymentFormationClass.Unset)
+                .Distinct()
+                .ToHashSet();
+
+            if (assignedClasses.Count == 0)
+                return new[] { GetCustomAssignmentClass(formationIndex) };
+
+            if (assignedClasses.All(deploymentClass => deploymentClass == DeploymentFormationClass.Infantry || deploymentClass == DeploymentFormationClass.Ranged))
+            {
+                return new[] { DeploymentFormationClass.Infantry, DeploymentFormationClass.Ranged }
+                    .Where(assignedClasses.Contains)
+                    .ToArray();
+            }
+
+            if (assignedClasses.All(deploymentClass => deploymentClass == DeploymentFormationClass.Cavalry || deploymentClass == DeploymentFormationClass.HorseArcher))
+            {
+                return new[] { DeploymentFormationClass.Cavalry, DeploymentFormationClass.HorseArcher }
+                    .Where(assignedClasses.Contains)
+                    .ToArray();
+            }
+
+            var fallback = GetCustomAssignmentClass(formationIndex);
+            Logger.Log($"[RefreshFormationPatch] Formation {formationIndex + 1} has an unsupported cross-family class mix; retaining single-class fallback {fallback}.");
+            return new[] { fallback };
+        }
+
         private static DeploymentFormationClass GetVanillaDefaultClass(int formationIndex)
         {
             if (formationIndex == 0 || formationIndex == 4 || formationIndex == 5)
@@ -198,7 +244,7 @@ namespace FormationManager.Patches
             }
         }
 
-        private static DeploymentFormationClass MapToDeploymentClass(BasicCharacterObject character)
+        public static DeploymentFormationClass MapToDeploymentClass(BasicCharacterObject character)
         {
             var settings = Settings.Instance;
             if (settings == null || !settings.UsePartyManagerRoleDefaults)
@@ -236,8 +282,10 @@ namespace FormationManager.Patches
             if (!MissionGuards.IsCurrentMissionSupported())
                 return;
 
-            Logger.Log("[SetInitialHeroFormationsPatch] Postfix: Distributing card weights...");
-            WeightDistributor.DistributeWeights(__instance);
+            // WeightDistributor runs later from OrderOfBattleVM.Initialize, after
+            // the exact agent plan has been prepared. Doing it here lets native OOB
+            // redistribute troops by class before we can restore per-stack splits.
+            Logger.Log("[SetInitialHeroFormationsPatch] Deferring card weights until exact OOB placement is complete.");
         }
     }
 
@@ -304,50 +352,43 @@ namespace FormationManager.Patches
                 // 1. Establish default preview positions. These are only a starting
                 // point: selecting classes or changing weights afterwards uses the
                 // game's normal OOB controls and is never reapplied by this patch.
-                foreach (var agent in team.ActiveAgents)
-                {
-                    var character = agent.Character;
-                    if (character == null || agent.IsMount || agent.IsMainAgent)
-                        continue;
-
-                    int assignedIndex = assignmentPlan.GetFormationIndex(agent, character, settings);
-                    if (assignedIndex < 0 || assignedIndex > 7)
-                        continue;
-
-                    var targetFormation = team.GetFormation((FormationClass)assignedIndex);
-                    if (targetFormation == null || targetFormation.Team != team || agent.Formation == targetFormation)
-                        continue;
-
-                    try
-                    {
-                        agent.Formation = targetFormation;
-                        Logger.Log($"[OrderOfBattleVMInitializePatch] Defaulted preview agent {character.StringId} to formation {assignedIndex + 1} (Name: {character.Name})");
-                    }
-                    catch (Exception ex)
-                    {
-                        Logger.Log($"[OrderOfBattleVMInitializePatch] Could not move preview agent {character.StringId}: {ex.GetType().Name}: {ex.Message}");
-                    }
-                }
+                ApplyExactPreviewAssignments(team, assignmentPlan, settings, "initial plan");
 
                 // 2. Seed only the initial card types. OrderOfBattleDefaultSession
                 // remains active while RefreshFormation runs, then is completed in
                 // finally so later player interaction is unmodified.
                 var formationsList = __instance.FormationsFirstHalf.Concat(__instance.FormationsSecondHalf).ToList();
+                // RefreshFormation can immediately redistribute native-class pools.
+                // Snapshot every intended card type first so an earlier card cannot
+                // make a later mixed card appear to contain only its remaining type.
+                var intendedCardClasses = formationsList
+                    .Where(item => item.Formation != null)
+                    .ToDictionary(
+                        item => item.Formation.Index,
+                        item => RefreshFormationPatch.GetCompatibleFormationClasses(item.Formation.Index, team)
+                            .Where(deploymentClass => deploymentClass != DeploymentFormationClass.Unset)
+                            .ToArray());
                 foreach (var item in formationsList)
                 {
                     if (item.Formation == null) continue;
                     int idx = item.Formation.Index;
 
-                    var targetClass = RefreshFormationPatch.GetCustomAssignmentClass(idx);
-                    if (targetClass != DeploymentFormationClass.Unset)
+                    var targetClasses = intendedCardClasses[idx];
+                    if (targetClasses.Length > 0)
                     {
-                        item.RefreshFormation(item.Formation, targetClass, true);
-                        var targetNativeClass = MapToNativeClass(targetClass);
+                        item.RefreshFormation(item.Formation, ToNativeCardClass(targetClasses), true);
                         if (item.Classes != null && item.Classes.Count > 0)
                         {
-                            item.Classes[0].Class = targetNativeClass;
-                            if (item.Classes.Count > 1)
-                                item.Classes[1].Class = FormationClass.Unset;
+                            // The mixed card types must be created through
+                            // RefreshFormation's dedicated enum values. Directly
+                            // setting two class slots is not enough for native OOB
+                            // to recognise Infantry+Ranged or Cavalry+HorseArcher.
+                            if (targetClasses.Length == 1)
+                            {
+                                item.Classes[0].Class = MapToNativeClass(targetClasses[0]);
+                                if (item.Classes.Count > 1)
+                                    item.Classes[1].Class = FormationClass.Unset;
+                            }
                         }
                     }
                 }
@@ -367,6 +408,13 @@ namespace FormationManager.Patches
                     Logger.Log($"[OrderOfBattleVMInitializePatch] Failed to call RefreshWeights: {ex}");
                 }
                 __instance.OnUnitDeployed();
+
+                // Native OOB applies its class-pool weights in OnUnitDeployed.
+                // Reapply the plan afterwards so the selected agents—not merely
+                // an equivalent number of their native class—remain in each slot.
+                ApplyExactPreviewAssignments(team, assignmentPlan, settings, "after native class-pool distribution");
+                foreach (var item in formationsList)
+                    item.OnSizeChanged();
 
                 Logger.Log("[OrderOfBattleVMInitializePatch] Defaults applied; native OOB controls are now unlocked.");
             }
@@ -401,6 +449,49 @@ namespace FormationManager.Patches
                     return FormationClass.Unset;
             }
         }
+
+        private static DeploymentFormationClass ToNativeCardClass(DeploymentFormationClass[] classes)
+        {
+            bool hasInfantry = classes.Contains(DeploymentFormationClass.Infantry);
+            bool hasRanged = classes.Contains(DeploymentFormationClass.Ranged);
+            if (hasInfantry && hasRanged)
+                return DeploymentFormationClass.InfantryAndRanged;
+
+            bool hasCavalry = classes.Contains(DeploymentFormationClass.Cavalry);
+            bool hasHorseArcher = classes.Contains(DeploymentFormationClass.HorseArcher);
+            if (hasCavalry && hasHorseArcher)
+                return DeploymentFormationClass.CavalryAndHorseArcher;
+
+            return classes[0];
+        }
+
+        private static void ApplyExactPreviewAssignments(Team team, OobDefaultAssignmentPlan assignmentPlan, Settings settings, string stage)
+        {
+            foreach (var agent in team.ActiveAgents)
+            {
+                var character = agent.Character;
+                if (character == null || agent.IsMount || agent.IsMainAgent)
+                    continue;
+
+                int assignedIndex = assignmentPlan.GetFormationIndex(agent, character, settings);
+                if (assignedIndex < 0 || assignedIndex > 7)
+                    continue;
+
+                var targetFormation = team.GetFormation((FormationClass)assignedIndex);
+                if (targetFormation == null || targetFormation.Team != team || agent.Formation == targetFormation)
+                    continue;
+
+                try
+                {
+                    agent.Formation = targetFormation;
+                    Logger.Log($"[OrderOfBattleVMInitializePatch] Applied {stage}: {character.StringId} -> formation {assignedIndex + 1} (Name: {character.Name})");
+                }
+                catch (Exception ex)
+                {
+                    Logger.Log($"[OrderOfBattleVMInitializePatch] Could not apply {stage} for {character.StringId}: {ex.GetType().Name}: {ex.Message}");
+                }
+            }
+        }
     }
 
     /// <summary>
@@ -414,46 +505,45 @@ namespace FormationManager.Patches
             if (!FormationAssignmentResolver.HasCustomDefaults(settings))
                 return;
 
-            DeploymentFormationClass[] cardClasses = new DeploymentFormationClass[8];
-            for (int i = 0; i < 8; i++)
-            {
-                cardClasses[i] = RefreshFormationPatch.GetCustomAssignmentClass(i);
-            }
-
             var assignmentPlan = OobDefaultAssignmentPlan.ForPlayerRoster(settings);
-            int[] classCounts = new int[8];
-            for (int formationIndex = 0; formationIndex < classCounts.Length; formationIndex++)
-                classCounts[formationIndex] = assignmentPlan.GetFormationCount(formationIndex);
+            int[,] classCounts = new int[8, 7]; // formation index, DeploymentFormationClass
+            for (int formationIndex = 0; formationIndex < 8; formationIndex++)
+            {
+                for (int classIndex = 0; classIndex < 7; classIndex++)
+                    classCounts[formationIndex, classIndex] = assignmentPlan.GetFormationClassCount(
+                        formationIndex,
+                        (DeploymentFormationClass)classIndex);
+            }
 
             var mainHero = Hero.MainHero;
             if (mainHero != null)
             {
                 int[] assignedIndices = FormationAssignmentStore.GetAssignments(mainHero.CharacterObject.StringId);
+                DeploymentFormationClass heroClass = RefreshFormationPatch.MapToDeploymentClass(mainHero.CharacterObject.DefaultFormationClass);
                 if (assignedIndices.Length > 0)
                 {
-                    for (int formationIndex = 0; formationIndex < classCounts.Length; formationIndex++)
+                    for (int formationIndex = 0; formationIndex < 8; formationIndex++)
                     {
-                        classCounts[formationIndex] += FormationAssignmentResolver.GetAssignedCountForFormation(
+                        int assignedCount = FormationAssignmentResolver.GetAssignedCountForFormation(
                             mainHero.CharacterObject,
                             1,
                             formationIndex,
                             settings);
+                        if ((int)heroClass >= 0 && (int)heroClass < 7)
+                            classCounts[formationIndex, (int)heroClass] += assignedCount;
                     }
                 }
                 else
                 {
-                    classCounts[2] += 1; // Default main hero to Cavalry slot
+                    classCounts[2, (int)DeploymentFormationClass.Cavalry] += 1; // Default main hero to Cavalry slot
                 }
             }
 
             int[] totalByClass = new int[7]; // DeploymentFormationClass has values 0 to 6
-            for (int i = 0; i < 8; i++)
+            for (int formationIndex = 0; formationIndex < 8; formationIndex++)
             {
-                int classVal = (int)cardClasses[i];
-                if (classVal >= 0 && classVal < 7)
-                {
-                    totalByClass[classVal] += classCounts[i];
-                }
+                for (int classIndex = 0; classIndex < 7; classIndex++)
+                    totalByClass[classIndex] += classCounts[formationIndex, classIndex];
             }
 
             var formationsList = VM.FormationsFirstHalf.Concat(VM.FormationsSecondHalf).ToList();
@@ -462,9 +552,7 @@ namespace FormationManager.Patches
             {
                 if (item.Formation == null) continue;
                 int idx = item.Formation.Index;
-                var cardClass = cardClasses[idx];
-
-                Logger.Log($"[WeightDistributor] Inspecting formation {idx} (CardClass={cardClass}, classCounts={classCounts[idx]})");
+                Logger.Log($"[WeightDistributor] Inspecting formation {idx}.");
 
                 for (int cIdx = 0; cIdx < item.Classes.Count; cIdx++)
                 {
@@ -473,13 +561,15 @@ namespace FormationManager.Patches
 
                     if (classVM.IsUnset) continue;
 
-                    if (RefreshFormationPatch.MapToDeploymentClass(classVM.Class) == cardClass)
+                    var deploymentClass = RefreshFormationPatch.MapToDeploymentClass(classVM.Class);
+                    int classIndex = (int)deploymentClass;
+                    if (classIndex >= 0 && classIndex < 7)
                     {
-                        int total = totalByClass[(int)cardClass];
+                        int total = totalByClass[classIndex];
                         int targetWeight = 0;
                         if (total > 0)
                         {
-                            targetWeight = (int)Math.Round((double)classCounts[idx] / total * 100);
+                            targetWeight = (int)Math.Round((double)classCounts[idx, classIndex] / total * 100);
                         }
                         classVM.Weight = targetWeight;
                         Logger.Log($"[WeightDistributor] Set formation {idx} class {classVM.Class} weight to {targetWeight}%");
