@@ -352,7 +352,7 @@ namespace FormationManager.Patches
                 // 1. Establish default preview positions. These are only a starting
                 // point: selecting classes or changing weights afterwards uses the
                 // game's normal OOB controls and is never reapplied by this patch.
-                ApplyExactPreviewAssignments(team, assignmentPlan, settings, "initial plan");
+                OobPreviewAssignmentApplier.Apply(team, assignmentPlan, settings, "initial plan");
 
                 // 2. Seed only the initial card types. OrderOfBattleDefaultSession
                 // remains active while RefreshFormation runs, then is completed in
@@ -394,7 +394,7 @@ namespace FormationManager.Patches
                 }
 
                 // 3. Show the default split in the card counts and weights.
-                WeightDistributor.DistributeWeights(__instance);
+                OobWeightDistributor.DistributeWeights(__instance);
 
                 foreach (var item in formationsList)
                     item.OnSizeChanged();
@@ -412,7 +412,7 @@ namespace FormationManager.Patches
                 // Native OOB applies its class-pool weights in OnUnitDeployed.
                 // Reapply the plan afterwards so the selected agents—not merely
                 // an equivalent number of their native class—remain in each slot.
-                ApplyExactPreviewAssignments(team, assignmentPlan, settings, "after native class-pool distribution");
+                OobPreviewAssignmentApplier.Apply(team, assignmentPlan, settings, "after native class-pool distribution");
                 foreach (var item in formationsList)
                     item.OnSizeChanged();
 
@@ -465,126 +465,6 @@ namespace FormationManager.Patches
             return classes[0];
         }
 
-        private static void ApplyExactPreviewAssignments(Team team, OobDefaultAssignmentPlan assignmentPlan, Settings settings, string stage)
-        {
-            foreach (var agent in team.ActiveAgents)
-            {
-                var character = agent.Character;
-                if (character == null || agent.IsMount || agent.IsMainAgent)
-                    continue;
-
-                int assignedIndex = assignmentPlan.GetFormationIndex(agent, character, settings);
-                if (assignedIndex < 0 || assignedIndex > 7)
-                    continue;
-
-                var targetFormation = team.GetFormation((FormationClass)assignedIndex);
-                if (targetFormation == null || targetFormation.Team != team || agent.Formation == targetFormation)
-                    continue;
-
-                try
-                {
-                    agent.Formation = targetFormation;
-                    Logger.Log($"[OrderOfBattleVMInitializePatch] Applied {stage}: {character.StringId} -> formation {assignedIndex + 1} (Name: {character.Name})");
-                }
-                catch (Exception ex)
-                {
-                    Logger.Log($"[OrderOfBattleVMInitializePatch] Could not apply {stage} for {character.StringId}: {ex.GetType().Name}: {ex.Message}");
-                }
-            }
-        }
     }
 
-    /// <summary>
-    /// Shared helper to distribute OOB card weights based on troop counts in each formation.
-    /// </summary>
-    internal static class WeightDistributor
-    {
-        public static void DistributeWeights(OrderOfBattleVM VM)
-        {
-            var settings = Settings.Instance;
-            if (!FormationAssignmentResolver.HasCustomDefaults(settings))
-                return;
-
-            var assignmentPlan = OobDefaultAssignmentPlan.ForPlayerRoster(settings);
-            int[,] classCounts = new int[8, 7]; // formation index, DeploymentFormationClass
-            for (int formationIndex = 0; formationIndex < 8; formationIndex++)
-            {
-                for (int classIndex = 0; classIndex < 7; classIndex++)
-                    classCounts[formationIndex, classIndex] = assignmentPlan.GetFormationClassCount(
-                        formationIndex,
-                        (DeploymentFormationClass)classIndex);
-            }
-
-            var mainHero = Hero.MainHero;
-            if (mainHero != null)
-            {
-                int[] assignedIndices = FormationAssignmentStore.GetAssignments(mainHero.CharacterObject.StringId);
-                DeploymentFormationClass heroClass = RefreshFormationPatch.MapToDeploymentClass(mainHero.CharacterObject.DefaultFormationClass);
-                if (assignedIndices.Length > 0)
-                {
-                    for (int formationIndex = 0; formationIndex < 8; formationIndex++)
-                    {
-                        int assignedCount = FormationAssignmentResolver.GetAssignedCountForFormation(
-                            mainHero.CharacterObject,
-                            1,
-                            formationIndex,
-                            settings);
-                        if ((int)heroClass >= 0 && (int)heroClass < 7)
-                            classCounts[formationIndex, (int)heroClass] += assignedCount;
-                    }
-                }
-                else
-                {
-                    classCounts[2, (int)DeploymentFormationClass.Cavalry] += 1; // Default main hero to Cavalry slot
-                }
-            }
-
-            int[] totalByClass = new int[7]; // DeploymentFormationClass has values 0 to 6
-            for (int formationIndex = 0; formationIndex < 8; formationIndex++)
-            {
-                for (int classIndex = 0; classIndex < 7; classIndex++)
-                    totalByClass[classIndex] += classCounts[formationIndex, classIndex];
-            }
-
-            var formationsList = VM.FormationsFirstHalf.Concat(VM.FormationsSecondHalf).ToList();
-
-            foreach (var item in formationsList)
-            {
-                if (item.Formation == null) continue;
-                int idx = item.Formation.Index;
-                Logger.Log($"[WeightDistributor] Inspecting formation {idx}.");
-
-                for (int cIdx = 0; cIdx < item.Classes.Count; cIdx++)
-                {
-                    var classVM = item.Classes[cIdx];
-                    Logger.Log($"[WeightDistributor]   - classVM[{cIdx}]: Class={classVM.Class}, IsUnset={classVM.IsUnset}, Weight={classVM.Weight}");
-
-                    if (classVM.IsUnset) continue;
-
-                    var deploymentClass = RefreshFormationPatch.MapToDeploymentClass(classVM.Class);
-                    int classIndex = (int)deploymentClass;
-                    if (classIndex >= 0 && classIndex < 7)
-                    {
-                        int total = totalByClass[classIndex];
-                        int targetWeight = 0;
-                        if (total > 0)
-                        {
-                            targetWeight = (int)Math.Round((double)classCounts[idx, classIndex] / total * 100);
-                        }
-                        classVM.Weight = targetWeight;
-
-                        // This is Bannerlord's native slider lock: it keeps the
-                        // class card and its other OOB controls usable while
-                        // preventing an accidental weight-slider drag from
-                        // undoing Formation Manager's initial distribution.
-                        // Only lock a class that this mod actually seeded.
-                        if (settings?.LockManagedOobSliders == true && classCounts[idx, classIndex] > 0)
-                            classVM.SetWeightAdjustmentLock(true);
-
-                        Logger.Log($"[WeightDistributor] Set formation {idx} class {classVM.Class} weight to {targetWeight}%");
-                    }
-                }
-            }
-        }
-    }
 }

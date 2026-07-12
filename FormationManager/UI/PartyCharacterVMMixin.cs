@@ -28,16 +28,12 @@ namespace FormationManager.UI
         private readonly string[] _assignedTexts = new string[8];
         private readonly string[] _weightTexts = new string[8];
         private readonly bool[] _editorFormationActive = new bool[8];
-        private readonly int[] _draftTargets = new int[8];
-        private readonly int[] _draftWeights = new int[8];
+        private readonly AdvancedFormationPlanDraft _draft = new();
         private string _formationLabel = "—";
         private string _secondaryFormationLabel = "+";
         private bool _isFormationBadgeVisible;
         private bool _isSecondaryFormationBadgeVisible;
         private int _selectedCustomFormationIndex = -1;
-        private bool _draftInitialized;
-        private bool _draftDirty;
-        private bool _draftClearRequested;
 
         public PartyCharacterVMMixin(PartyCharacterVM vm) : base(vm)
         {
@@ -84,7 +80,7 @@ namespace FormationManager.UI
             FormationAssignmentStore.TryGetDeploymentPlan(ViewModel.Character.StringId, out _);
         [DataSourceProperty] public bool CanRestoreAdvancedFormationPlan => AdvancedPlansEnabled && ViewModel?.Character != null &&
             FormationAssignmentStore.CanRestoreDeploymentPlan(ViewModel.Character.StringId);
-        [DataSourceProperty] public bool HasUnsavedAdvancedFormationChanges => _draftDirty;
+        [DataSourceProperty] public bool HasUnsavedAdvancedFormationChanges => _draft.IsDirty;
         [DataSourceProperty] public bool IsFormationEditorSliderVisible => IsFormationEditorVisible && _selectedCustomFormationIndex >= 0;
         [DataSourceProperty] public bool IsCustomFormationSelected => _selectedCustomFormationIndex >= 0;
         [DataSourceProperty] public bool IsFormation1Selected => _selectedCustomFormationIndex == 0;
@@ -146,14 +142,14 @@ namespace FormationManager.UI
         [DataSourceProperty]
         public int SelectedFormationTarget
         {
-            get => _selectedCustomFormationIndex < 0 ? 0 : _draftTargets[_selectedCustomFormationIndex];
+            get => _selectedCustomFormationIndex < 0 ? 0 : _draft.GetTarget(_selectedCustomFormationIndex);
             set => SetSelectedTarget(value);
         }
 
         [DataSourceProperty]
         public int SelectedFormationWeight
         {
-            get => _selectedCustomFormationIndex < 0 ? 0 : _draftWeights[_selectedCustomFormationIndex];
+            get => _selectedCustomFormationIndex < 0 ? 0 : _draft.GetWeight(_selectedCustomFormationIndex);
             set => SetSelectedWeight(value);
         }
 
@@ -238,11 +234,9 @@ namespace FormationManager.UI
         {
             if (ViewModel?.Character == null) return;
             EnsureDraftInitialized();
-            Array.Clear(_draftTargets, 0, _draftTargets.Length);
-            Array.Clear(_draftWeights, 0, _draftWeights.Length);
-            _draftClearRequested = true;
+            _draft.Clear();
             _selectedCustomFormationIndex = -1;
-            MarkDraftDirty();
+            MarkDraftChanged();
             RefreshEditorValues();
         }
 
@@ -254,10 +248,9 @@ namespace FormationManager.UI
             if (!FormationAssignmentStore.TryGetArchivedDeploymentPlanCopy(character.StringId, out var plan))
                 return;
 
-            LoadDraft(plan!);
-            _draftClearRequested = false;
+            _draft.Load(plan!);
             _selectedCustomFormationIndex = -1;
-            MarkDraftDirty();
+            MarkDraftChanged();
             RefreshEditorValues();
         }
 
@@ -265,9 +258,9 @@ namespace FormationManager.UI
         public void ExecuteSaveAdvancedFormationPlan()
         {
             var character = ViewModel?.Character;
-            if (character == null || !_draftInitialized || !_draftDirty) return;
+            if (character == null || !_draft.IsInitialized || !_draft.IsDirty) return;
 
-            if (_draftClearRequested)
+            if (_draft.IsClearRequested)
             {
                 FormationAssignmentStore.ClearDeploymentPlan(character.StringId);
             }
@@ -275,12 +268,11 @@ namespace FormationManager.UI
             {
                 FormationAssignmentStore.SaveCustomPlan(
                     character.StringId,
-                    Enumerable.Range(0, 8).ToDictionary(index => index, index => _draftTargets[index]),
-                    Enumerable.Range(0, 8).ToDictionary(index => index, index => _draftWeights[index]));
+                    _draft.Targets,
+                    _draft.Weights);
             }
             FormationAssignmentStore.Save();
-            _draftClearRequested = false;
-            _draftDirty = false;
+            _draft.MarkSaved();
             OnPropertyChanged(nameof(HasUnsavedAdvancedFormationChanges));
             Refresh();
         }
@@ -317,11 +309,8 @@ namespace FormationManager.UI
         {
             if (_selectedCustomFormationIndex < 0) return;
             EnsureDraftInitialized();
-            int next = Math.Max(0, Math.Min(value, GetSelectedTargetMaximum()));
-            if (_draftTargets[_selectedCustomFormationIndex] == next) return;
-            _draftTargets[_selectedCustomFormationIndex] = next;
-            UpdateClearRequestedFromDraft();
-            MarkDraftDirty();
+            if (!_draft.SetTarget(_selectedCustomFormationIndex, value, GetReadyTroopCount())) return;
+            MarkDraftChanged();
             RefreshEditorValues();
         }
 
@@ -329,20 +318,15 @@ namespace FormationManager.UI
         {
             if (_selectedCustomFormationIndex < 0) return;
             EnsureDraftInitialized();
-            int next = Math.Max(0, Math.Min(100, value));
-            if (_draftWeights[_selectedCustomFormationIndex] == next) return;
-            _draftWeights[_selectedCustomFormationIndex] = next;
-            UpdateClearRequestedFromDraft();
-            MarkDraftDirty();
+            if (!_draft.SetWeight(_selectedCustomFormationIndex, value)) return;
+            MarkDraftChanged();
             RefreshEditorValues();
         }
 
         private int GetSelectedTargetMaximum()
         {
             if (_selectedCustomFormationIndex < 0) return 0;
-            int otherTargets = Enumerable.Range(0, 8).Where(index => index != _selectedCustomFormationIndex)
-                .Sum(index => _draftTargets[index]);
-            return Math.Max(0, GetReadyTroopCount() - otherTargets);
+            return _draft.GetTargetMaximum(_selectedCustomFormationIndex, GetReadyTroopCount());
         }
 
         private int GetReadyTroopCount()
@@ -382,10 +366,8 @@ namespace FormationManager.UI
             EnsureDraftInitialized();
             if (!_editorFormationActive[formationIndex])
             {
-                _draftTargets[formationIndex] = 1;
-                _draftWeights[formationIndex] = 0;
-                _draftClearRequested = false;
-                MarkDraftDirty();
+                _draft.Activate(formationIndex);
+                MarkDraftChanged();
                 RefreshEditorValues();
             }
             _selectedCustomFormationIndex = formationIndex;
@@ -396,10 +378,8 @@ namespace FormationManager.UI
         {
             if (ViewModel?.Character == null || !_editorFormationActive[formationIndex]) return;
             EnsureDraftInitialized();
-            _draftTargets[formationIndex] = 0;
-            _draftWeights[formationIndex] = 0;
-            UpdateClearRequestedFromDraft();
-            MarkDraftDirty();
+            _draft.Deactivate(formationIndex);
+            MarkDraftChanged();
             if (_selectedCustomFormationIndex == formationIndex) _selectedCustomFormationIndex = -1;
             RefreshEditorValues();
         }
@@ -417,76 +397,29 @@ namespace FormationManager.UI
         private int[] GetEditorActiveFormationIndices()
         {
             EnsureDraftInitialized();
-            return Enumerable.Range(0, 8).Where(index => _draftTargets[index] > 0 || _draftWeights[index] > 0).ToArray();
-        }
-
-        private void LoadDraft(TroopDeploymentPlan plan)
-        {
-            Array.Clear(_draftTargets, 0, _draftTargets.Length);
-            Array.Clear(_draftWeights, 0, _draftWeights.Length);
-            if (plan.Mode == TroopDeploymentPlanMode.Custom)
-            {
-                foreach (var pair in plan.FormationTargets.Where(pair => pair.Key >= 0 && pair.Key <= 7))
-                    _draftTargets[pair.Key] = pair.Value;
-                foreach (var pair in plan.FormationWeights.Where(pair => pair.Key >= 0 && pair.Key <= 7))
-                    _draftWeights[pair.Key] = pair.Value;
-            }
-            else
-            {
-                foreach (int index in plan.FormationIndices.Where(index => index >= 0 && index <= 7))
-                    _draftWeights[index] = 1;
-            }
-
-            _draftInitialized = true;
-        }
-
-        private void UpdateClearRequestedFromDraft()
-        {
-            _draftClearRequested = !_draftTargets.Any(value => value > 0) && !_draftWeights.Any(value => value > 0);
+            return Enumerable.Range(0, 8).Where(_draft.IsActive).ToArray();
         }
 
         private void EnsureDraftInitialized()
         {
-            if (_draftInitialized)
+            if (_draft.IsInitialized)
                 return;
 
-            Array.Clear(_draftTargets, 0, _draftTargets.Length);
-            Array.Clear(_draftWeights, 0, _draftWeights.Length);
             var character = ViewModel?.Character;
-            if (character != null && FormationAssignmentStore.TryGetDeploymentPlan(character.StringId, out var plan))
+            TroopDeploymentPlan? plan = null;
+            bool hasArchivedPlan = false;
+            if (character != null)
             {
-                if (plan!.Mode == TroopDeploymentPlanMode.Custom)
-                {
-                    foreach (var pair in plan.FormationTargets.Where(pair => pair.Key >= 0 && pair.Key <= 7))
-                        _draftTargets[pair.Key] = pair.Value;
-                    foreach (var pair in plan.FormationWeights.Where(pair => pair.Key >= 0 && pair.Key <= 7))
-                        _draftWeights[pair.Key] = pair.Value;
-                }
-                else
-                {
-                    foreach (int index in plan.FormationIndices.Where(index => index >= 0 && index <= 7))
-                        _draftWeights[index] = 1;
-                }
+                FormationAssignmentStore.TryGetDeploymentPlan(character.StringId, out plan);
+                hasArchivedPlan = FormationAssignmentStore.CanRestoreDeploymentPlan(character.StringId);
             }
-            else if (character != null && !FormationAssignmentStore.CanRestoreDeploymentPlan(character.StringId))
-            {
-                foreach (int index in GetBaselineFormationIndices())
-                    _draftTargets[index] = 1;
-            }
-
-            _draftInitialized = true;
-            _draftDirty = false;
-            _draftClearRequested = false;
+            _draft.Initialize(plan, GetBaselineFormationIndices(), hasArchivedPlan);
             OnPropertyChanged(nameof(HasUnsavedAdvancedFormationChanges));
         }
 
-        private void MarkDraftDirty()
+        private void MarkDraftChanged()
         {
-            if (!_draftDirty)
-            {
-                _draftDirty = true;
-                OnPropertyChanged(nameof(HasUnsavedAdvancedFormationChanges));
-            }
+            OnPropertyChanged(nameof(HasUnsavedAdvancedFormationChanges));
 
             if (Settings.Instance?.AutosaveAdvancedFormationPlans ?? false)
             {
@@ -502,11 +435,7 @@ namespace FormationManager.UI
 
         private void ResetDraft()
         {
-            Array.Clear(_draftTargets, 0, _draftTargets.Length);
-            Array.Clear(_draftWeights, 0, _draftWeights.Length);
-            _draftInitialized = false;
-            _draftDirty = false;
-            _draftClearRequested = false;
+            _draft.Reset();
             OnPropertyChanged(nameof(HasUnsavedAdvancedFormationChanges));
         }
 
@@ -534,7 +463,7 @@ namespace FormationManager.UI
             // Until an advanced draft is actually changed and saved, the simple
             // assignment remains its source of truth. Refreshing here prevents a
             // previously opened editor from holding an obsolete copied baseline.
-            if (!hasDeploymentPlan && !_draftDirty)
+            if (!hasDeploymentPlan && !_draft.IsDirty)
                 ResetDraft();
 
             int primary = FormationAssignmentStore.GetAssignment(troopId);
@@ -556,8 +485,8 @@ namespace FormationManager.UI
                 : FormationAssignmentResolver.GetAllocatedCustomPlanCounts(
                     character,
                     GetReadyTroopCount(),
-                    Enumerable.Range(0, 8).ToDictionary(index => index, index => _draftTargets[index]),
-                    Enumerable.Range(0, 8).ToDictionary(index => index, index => _draftWeights[index]),
+                    _draft.Targets,
+                    _draft.Weights,
                     Settings.Instance);
 
             int[] activeFormationIndices = GetEditorActiveFormationIndices();
@@ -565,8 +494,8 @@ namespace FormationManager.UI
             {
                 _editorFormationActive[i] = activeFormationIndices.Contains(i);
                 int assigned = allocation.TryGetValue(i, out int count) ? count : 0;
-                int target = _draftTargets[i];
-                int weight = _draftWeights[i];
+                int target = _draft.GetTarget(i);
+                int weight = _draft.GetWeight(i);
                 _targetTexts[i] = _editorFormationActive[i] ? $"Target {target}" : string.Empty;
                 _assignedTexts[i] = _editorFormationActive[i] ? $"Assigned {assigned}" : "+ Add formation";
                 _weightTexts[i] = _editorFormationActive[i] ? $"Weight {weight}" : string.Empty;
