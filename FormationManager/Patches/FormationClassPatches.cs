@@ -391,6 +391,13 @@ namespace FormationManager.Patches
                             }
                         }
                     }
+                    else
+                    {
+                        // A previously selected native card must not remain active
+                        // when the configured Formation Manager plan leaves this
+                        // slot empty.
+                        item.RefreshFormation(item.Formation, DeploymentFormationClass.Unset, false);
+                    }
                 }
 
                 // 3. Show the default split in the card counts and weights.
@@ -415,6 +422,7 @@ namespace FormationManager.Patches
                 OobPreviewAssignmentApplier.Apply(team, assignmentPlan, settings, "after native class-pool distribution");
                 foreach (var item in formationsList)
                     item.OnSizeChanged();
+                OobWeightDistributor.LockManagedSliders(__instance);
 
                 Logger.Log("[OrderOfBattleVMInitializePatch] Defaults applied; native OOB controls are now unlocked.");
             }
