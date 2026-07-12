@@ -210,5 +210,13 @@ namespace FormationManager
             Order = 2)]
         [SettingPropertyGroup("Multi-Formation Splits")]
         public bool AutosaveAdvancedFormationPlans { get; set; } = false;
+
+        [SettingPropertyBool(
+            "Lock Managed OOB Sliders",
+            RequireRestart = false,
+            HintText = "Lock Bannerlord's native weight sliders on formation cards seeded by Formation Manager. Turn this off to manually rebalance those cards in the Order of Battle screen.",
+            Order = 3)]
+        [SettingPropertyGroup("Multi-Formation Splits")]
+        public bool LockManagedOobSliders { get; set; } = true;
     }
 }

@@ -572,6 +572,15 @@ namespace FormationManager.Patches
                             targetWeight = (int)Math.Round((double)classCounts[idx, classIndex] / total * 100);
                         }
                         classVM.Weight = targetWeight;
+
+                        // This is Bannerlord's native slider lock: it keeps the
+                        // class card and its other OOB controls usable while
+                        // preventing an accidental weight-slider drag from
+                        // undoing Formation Manager's initial distribution.
+                        // Only lock a class that this mod actually seeded.
+                        if (settings?.LockManagedOobSliders == true && classCounts[idx, classIndex] > 0)
+                            classVM.SetWeightAdjustmentLock(true);
+
                         Logger.Log($"[WeightDistributor] Set formation {idx} class {classVM.Class} weight to {targetWeight}%");
                     }
                 }

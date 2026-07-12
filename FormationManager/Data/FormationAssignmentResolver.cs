@@ -243,7 +243,11 @@ namespace FormationManager.Data
                 if (weights.Count > 0)
                     AllocateProportionally(allocation, weights, surplus);
                 else
-                    AddCount(allocation, fallbackIndex, surplus);
+                    // A target-only plan has already expressed its intended
+                    // split. Treat those targets as the surplus weights rather
+                    // than silently putting every additional troop in the
+                    // role/default fallback formation.
+                    AllocateProportionally(allocation, targets, surplus);
                 return;
             }
 
