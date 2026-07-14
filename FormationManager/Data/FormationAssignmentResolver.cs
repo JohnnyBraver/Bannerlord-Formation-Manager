@@ -16,7 +16,13 @@ namespace FormationManager.Data
         public static bool HasCustomDefaults(Settings? settings)
             => FormationAssignmentStore.HasAnyAssignments || HasConfiguredDefaultFormations(settings);
 
-        public static int[] GetFormationIndices(BasicCharacterObject character, Settings? settings)
+        /// <summary>
+        /// Returns only formations explicitly active in the troop's plan. For a
+        /// custom advanced plan this deliberately excludes its role/default
+        /// fallback, which is used only when an individual reinforcement arrives
+        /// without the OOB stack context.
+        /// </summary>
+        public static int[] GetActivePlanFormationIndices(BasicCharacterObject character, Settings? settings)
         {
             if (character == null)
                 return Array.Empty<int>();
@@ -26,10 +32,9 @@ namespace FormationManager.Data
                 if (deploymentPlan!.Mode == TroopDeploymentPlanMode.Even)
                     return deploymentPlan.FormationIndices.ToArray();
 
-                int fallbackIndex = GetDefaultFormationIndex(character, settings);
                 return deploymentPlan.FormationTargets.Keys
                     .Concat(deploymentPlan.FormationWeights.Keys)
-                    .Append(fallbackIndex)
+                    .Where(FormationPlanNormalizer.IsValidFormationIndex)
                     .Distinct()
                     .OrderBy(index => index)
                     .ToArray();
@@ -39,8 +44,23 @@ namespace FormationManager.Data
             if (explicitAssignments.Length > 0)
                 return explicitAssignments;
 
-            return new[] { GetDefaultFormationIndex(character, settings) };
+            return Array.Empty<int>();
         }
+
+        /// <summary>
+        /// Returns the actual managed slots for card classification. Unlike an
+        /// advanced custom plan's fallback, configured role/class defaults are a
+        /// direct placement and are therefore included when no plan is active.
+        /// </summary>
+        public static int[] GetEffectiveFormationIndices(BasicCharacterObject character, Settings? settings)
+        {
+            int[] activeIndices = GetActivePlanFormationIndices(character, settings);
+            return activeIndices.Length > 0 ? activeIndices : new[] { GetDefaultFormationIndex(character, settings) };
+        }
+
+        /// <summary>Compatibility alias for callers that need effective slots.</summary>
+        public static int[] GetFormationIndices(BasicCharacterObject character, Settings? settings)
+            => GetEffectiveFormationIndices(character, settings);
 
         public static int ResolveFormationIndex(Agent? agent, BasicCharacterObject character, Settings? settings)
         {
@@ -61,9 +81,9 @@ namespace FormationManager.Data
                 return GetDefaultFormationIndex(character, settings);
             }
 
-            int[] formationIndices = GetFormationIndices(character, settings);
+            int[] formationIndices = GetActivePlanFormationIndices(character, settings);
             if (formationIndices.Length == 0)
-                return -1;
+                return GetDefaultFormationIndex(character, settings);
 
             if (formationIndices.Length == 1 || agent == null)
                 return formationIndices[0];
@@ -144,7 +164,11 @@ namespace FormationManager.Data
             return surplus > 0 && weights.Count > 0;
         }
 
-        public static Dictionary<int, int> GetAllocatedFormationCounts(BasicCharacterObject character, int troopCount, Settings? settings)
+        public static Dictionary<int, int> GetAllocatedFormationCounts(
+            BasicCharacterObject character,
+            int troopCount,
+            Settings? settings,
+            IFormationRemainderStrategy? remainderStrategy = null)
         {
             var allocation = new Dictionary<int, int>();
             if (character == null || troopCount <= 0)
@@ -152,15 +176,18 @@ namespace FormationManager.Data
 
             if (TryGetEvenSplitTargets(character, out int[] evenTargets, settings))
             {
-                AllocateEvenly(allocation, evenTargets, troopCount);
-                return allocation;
+                return FormationPlanAllocator.AllocateEvenly(evenTargets, troopCount, remainderStrategy);
             }
 
             if (AdvancedPlansEnabled(settings) && FormationAssignmentStore.TryGetDeploymentPlan(character.StringId, out var deploymentPlan) &&
                 deploymentPlan!.Mode == TroopDeploymentPlanMode.Custom)
             {
-                AllocateCustomPlan(allocation, deploymentPlan, troopCount, GetDefaultFormationIndex(character, settings), settings?.PrioritizeWeightsInSmallStacks ?? false);
-                return allocation;
+                return FormationPlanAllocator.AllocateCustom(
+                    deploymentPlan,
+                    troopCount,
+                    GetDefaultFormationIndex(character, settings),
+                    settings?.PrioritizeWeightsInSmallStacks ?? false,
+                    remainderStrategy);
             }
 
             int[] explicitAssignments = FormationAssignmentStore.GetAssignments(character.StringId);
@@ -190,121 +217,11 @@ namespace FormationManager.Data
                 plan.FormationTargets[pair.Key] = pair.Value;
             foreach (var pair in weights)
                 plan.FormationWeights[pair.Key] = pair.Value;
-            AllocateCustomPlan(allocation, plan, troopCount, GetDefaultFormationIndex(character, settings), settings?.PrioritizeWeightsInSmallStacks ?? false);
-            return allocation;
-        }
-
-        private static void AllocateEvenly(Dictionary<int, int> allocation, int[] formationIndices, int troopCount)
-        {
-            int countPerFormation = troopCount / formationIndices.Length;
-            int remainder = troopCount % formationIndices.Length;
-            for (int i = 0; i < formationIndices.Length; i++)
-                allocation[formationIndices[i]] = countPerFormation + (i < remainder ? 1 : 0);
-        }
-
-        private static void AllocateCustomPlan(Dictionary<int, int> allocation, TroopDeploymentPlan plan, int troopCount, int fallbackIndex, bool prioritizeWeightsInSmallStacks)
-        {
-            var targets = plan.FormationTargets.Where(pair => pair.Key >= 0 && pair.Key <= 7 && pair.Value > 0)
-                .OrderBy(pair => pair.Key).ToDictionary(pair => pair.Key, pair => pair.Value);
-            var weights = plan.FormationWeights.Where(pair => pair.Key >= 0 && pair.Key <= 7 && pair.Value > 0)
-                .OrderBy(pair => pair.Key).ToDictionary(pair => pair.Key, pair => pair.Value);
-            var activeIndices = targets.Keys.Concat(weights.Keys).Distinct().OrderBy(index => index).ToArray();
-            if (activeIndices.Length == 0)
-            {
-                allocation[fallbackIndex] = troopCount;
-                return;
-            }
-
-            int targetTotal = targets.Values.Sum();
-            // A weight-only plan has no targets to make it "short" against, but
-            // it is still a short stack when fewer troops are available than its
-            // active formations. Apply the same default minimum rule here so
-            // 50/1/1/1/1/1/1/1 with ten troops becomes 3/1/1/1/1/1/1/1.
-            if (targetTotal == 0 && weights.Count > 0 && !prioritizeWeightsInSmallStacks)
-            {
-                int surplusAfterMinimums = troopCount;
-                foreach (int index in activeIndices)
-                {
-                    if (surplusAfterMinimums == 0)
-                        break;
-                    AddCount(allocation, index, 1);
-                    surplusAfterMinimums--;
-                }
-                AllocateProportionally(allocation, weights, surplusAfterMinimums);
-                return;
-            }
-
-            if (troopCount >= targetTotal)
-            {
-                foreach (var pair in targets)
-                    allocation[pair.Key] = pair.Value;
-
-                int surplus = troopCount - targetTotal;
-                if (weights.Count > 0)
-                    AllocateProportionally(allocation, weights, surplus);
-                else
-                    // A target-only plan has already expressed its intended
-                    // split. Treat those targets as the surplus weights rather
-                    // than silently putting every additional troop in the
-                    // role/default fallback formation.
-                    AllocateProportionally(allocation, targets, surplus);
-                return;
-            }
-
-            if (prioritizeWeightsInSmallStacks)
-            {
-                AllocateProportionally(allocation, weights.Count > 0 ? weights : targets, troopCount);
-                return;
-            }
-
-            int remaining = troopCount;
-            foreach (int index in activeIndices)
-            {
-                if (remaining == 0)
-                    break;
-                AddCount(allocation, index, 1);
-                remaining--;
-            }
-
-            if (remaining > 0)
-                AllocateProportionally(allocation, weights.Count > 0 ? weights : targets, remaining);
-        }
-
-        private static void AllocateProportionally(Dictionary<int, int> allocation, IReadOnlyDictionary<int, int> values, int troopCount)
-        {
-            if (troopCount <= 0 || values.Count == 0)
-                return;
-
-            int total = values.Values.Sum(value => Math.Max(0, value));
-            if (total <= 0)
-                return;
-
-            int allocated = 0;
-            var remainders = new List<(int FormationIndex, int Remainder)>();
-            foreach (var pair in values.OrderBy(pair => pair.Key))
-            {
-                int numerator = troopCount * pair.Value;
-                int count = numerator / total;
-                AddCount(allocation, pair.Key, count);
-                allocated += count;
-                remainders.Add((pair.Key, numerator % total));
-            }
-
-            foreach (var remainder in remainders.OrderByDescending(item => item.Remainder).ThenBy(item => item.FormationIndex))
-            {
-                if (allocated >= troopCount)
-                    break;
-                AddCount(allocation, remainder.FormationIndex, 1);
-                allocated++;
-            }
-        }
-
-        private static void AddCount(Dictionary<int, int> allocation, int formationIndex, int count)
-        {
-            if (count <= 0)
-                return;
-
-            allocation[formationIndex] = allocation.TryGetValue(formationIndex, out int existing) ? existing + count : count;
+            return FormationPlanAllocator.AllocateCustom(
+                plan,
+                troopCount,
+                GetDefaultFormationIndex(character, settings),
+                settings?.PrioritizeWeightsInSmallStacks ?? false);
         }
 
         private static bool AdvancedPlansEnabled(Settings? settings)

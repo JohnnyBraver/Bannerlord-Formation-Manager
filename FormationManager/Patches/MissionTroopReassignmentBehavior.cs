@@ -67,7 +67,7 @@ namespace FormationManager.Patches
             if (settings == null || !settings.ModEnabled || !settings.AutoReassignmentEnabled)
                 return;
 
-            if (!IsPlayerTroop(agent))
+            if (!IsManagedTroop(agent, settings))
                 return;
 
             var character = agent.Character;
@@ -110,14 +110,8 @@ namespace FormationManager.Patches
             return FormationAssignmentResolver.ResolveFormationIndex(agent, character, settings);
         }
 
-        private static bool IsPlayerTroop(Agent agent)
-        {
-            if (agent == null || !agent.IsHuman || agent.IsMainAgent)
-                return false;
-
-            var team = agent.Team;
-            return team != null && team.IsPlayerTeam;
-        }
+        private static bool IsManagedTroop(Agent agent, Settings settings)
+            => TroopControlScope.ShouldManage(agent, settings);
 
         private static bool CanSafelyMoveAgent(Agent agent, Team expectedTeam)
         {
@@ -149,17 +143,11 @@ namespace FormationManager.Patches
         }
 
         private static bool IsRangedClass(FormationClass formationClass)
-        {
-            return formationClass == FormationClass.Ranged
-                || formationClass == FormationClass.HorseArcher;
-        }
+            => formationClass == FormationClass.Ranged || formationClass == FormationClass.HorseArcher;
 
         private static bool IsMeleeCavalry(FormationClass formationClass)
-        {
-            return formationClass == FormationClass.Cavalry
-                || formationClass == FormationClass.HeavyCavalry
-                || formationClass == FormationClass.LightCavalry;
-        }
+            => formationClass == FormationClass.Cavalry || formationClass == FormationClass.HeavyCavalry ||
+               formationClass == FormationClass.LightCavalry;
 
         private static void MoveToFormation(Agent agent, int formationIndex, string reason)
         {

@@ -8,16 +8,15 @@ namespace FormationManager.Patches
     /// <summary>Reapplies exact agents after native OOB class-pool distribution.</summary>
     internal static class OobPreviewAssignmentApplier
     {
-        public static void Apply(Team team, OobDefaultAssignmentPlan assignmentPlan, Settings settings, string stage)
+        public static void Apply(Team team, OobFormationLayout layout, Settings settings, string stage)
         {
             foreach (var agent in team.ActiveAgents)
             {
                 var character = agent.Character;
-                if (character == null || agent.IsMount || agent.IsMainAgent)
+                if (character == null || !TroopControlScope.ShouldManage(agent, settings))
                     continue;
-
-                int assignedIndex = assignmentPlan.GetFormationIndex(agent, character, settings);
-                if (assignedIndex is < 0 or > 7)
+                int assignedIndex = layout.GetFormationIndex(agent, character, settings);
+            if (assignedIndex is < 0 or > 7)
                     continue;
 
                 var targetFormation = team.GetFormation((FormationClass)assignedIndex);

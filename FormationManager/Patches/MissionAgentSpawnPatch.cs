@@ -39,6 +39,9 @@ namespace FormationManager.Patches
             if (!isPlayerSide)
                 return;
 
+            if (!TroopControlScope.ShouldManage(__result, settings))
+                return;
+
             var character = troopOrigin.Troop;
             if (character == null)
                 return;

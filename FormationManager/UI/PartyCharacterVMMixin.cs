@@ -6,6 +6,7 @@ using System.Runtime.CompilerServices;
 using Bannerlord.UIExtenderEx.Attributes;
 using Bannerlord.UIExtenderEx.ViewModels;
 using FormationManager.Data;
+using FormationManager.Patches;
 using TaleWorlds.CampaignSystem;
 using TaleWorlds.CampaignSystem.Party;
 using TaleWorlds.CampaignSystem.ViewModelCollection.Party;
@@ -447,8 +448,9 @@ namespace FormationManager.UI
         private void Refresh()
         {
             bool modEnabled = Settings.Instance?.ModEnabled ?? true;
-            IsFormationBadgeVisible = modEnabled && ViewModel != null && !ViewModel.IsMainHero && !ViewModel.IsPrisoner;
-            if (ViewModel?.Character == null || !modEnabled)
+            bool isEligibleTroop = TroopControlScope.IsEligibleTroop(ViewModel?.Character);
+            IsFormationBadgeVisible = modEnabled && ViewModel != null && !ViewModel.IsPrisoner && isEligibleTroop;
+            if (ViewModel?.Character == null || !modEnabled || !isEligibleTroop)
             {
                 FormationLabel = "—";
                 SecondaryFormationLabel = "+";

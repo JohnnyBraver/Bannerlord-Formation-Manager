@@ -1,7 +1,6 @@
 using System;
 using System.Linq;
 using FormationManager.Data;
-using TaleWorlds.CampaignSystem;
 using TaleWorlds.Core;
 using TaleWorlds.MountAndBlade.ViewModelCollection.OrderOfBattle;
 
@@ -10,15 +9,13 @@ namespace FormationManager.Patches
     /// <summary>Seeds native OOB class weights and locks from the resolved plan.</summary>
     internal static class OobWeightDistributor
     {
-        public static void DistributeWeights(OrderOfBattleVM viewModel)
+        public static void DistributeWeights(OrderOfBattleVM viewModel, OobFormationLayout layout)
         {
             var settings = Settings.Instance;
             if (!FormationAssignmentResolver.HasCustomDefaults(settings))
                 return;
 
-            var assignmentPlan = OobDefaultAssignmentPlan.ForPlayerRoster(settings);
-            int[,] classCounts = GetClassCounts(assignmentPlan);
-            AddMainHero(classCounts, settings);
+            int[,] classCounts = GetClassCounts(layout);
             int[] totalByClass = GetTotals(classCounts);
 
             foreach (var item in viewModel.FormationsFirstHalf.Concat(viewModel.FormationsSecondHalf))
@@ -36,14 +33,13 @@ namespace FormationManager.Patches
         /// Lock after native refresh/distribution. Bannerlord can recreate class VMs
         /// during that flow, so locking earlier can be silently discarded.
         /// </summary>
-        public static void LockManagedSliders(OrderOfBattleVM viewModel)
+        public static void LockManagedSliders(OrderOfBattleVM viewModel, OobFormationLayout layout)
         {
             var settings = Settings.Instance;
             if (settings?.LockManagedOobSliders != true || !FormationAssignmentResolver.HasCustomDefaults(settings))
                 return;
 
-            int[,] classCounts = GetClassCounts(OobDefaultAssignmentPlan.ForPlayerRoster(settings));
-            AddMainHero(classCounts, settings);
+            int[,] classCounts = GetClassCounts(layout);
             foreach (var item in viewModel.FormationsFirstHalf.Concat(viewModel.FormationsSecondHalf))
             {
                 if (item.Formation == null)
@@ -67,38 +63,14 @@ namespace FormationManager.Patches
             }
         }
 
-        private static int[,] GetClassCounts(OobDefaultAssignmentPlan assignmentPlan)
+        private static int[,] GetClassCounts(OobFormationLayout layout)
         {
             int[,] classCounts = new int[8, 7];
             for (int formationIndex = 0; formationIndex < 8; formationIndex++)
             for (int classIndex = 0; classIndex < 7; classIndex++)
-                classCounts[formationIndex, classIndex] = assignmentPlan.GetFormationClassCount(
+                classCounts[formationIndex, classIndex] = layout.GetFormationClassCount(
                     formationIndex, (DeploymentFormationClass)classIndex);
             return classCounts;
-        }
-
-        private static void AddMainHero(int[,] classCounts, Settings? settings)
-        {
-            var mainHero = Hero.MainHero;
-            if (mainHero == null)
-                return;
-
-            int[] assignedIndices = FormationAssignmentStore.GetAssignments(mainHero.CharacterObject.StringId);
-            DeploymentFormationClass heroClass = RefreshFormationPatch.MapToDeploymentClass(mainHero.CharacterObject.DefaultFormationClass);
-            if (assignedIndices.Length > 0)
-            {
-                for (int formationIndex = 0; formationIndex < 8; formationIndex++)
-                {
-                    int assignedCount = FormationAssignmentResolver.GetAssignedCountForFormation(
-                        mainHero.CharacterObject, 1, formationIndex, settings);
-                    if ((int)heroClass is >= 0 and < 7)
-                        classCounts[formationIndex, (int)heroClass] += assignedCount;
-                }
-            }
-            else
-            {
-                classCounts[2, (int)DeploymentFormationClass.Cavalry] += 1;
-            }
         }
 
         private static int[] GetTotals(int[,] classCounts)

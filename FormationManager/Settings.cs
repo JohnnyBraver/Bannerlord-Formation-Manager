@@ -218,5 +218,37 @@ namespace FormationManager
             Order = 3)]
         [SettingPropertyGroup("Multi-Formation Splits")]
         public bool LockManagedOobSliders { get; set; } = true;
+
+        [SettingPropertyBool(
+            "Manage Allied Infantry (Opt-In)",
+            RequireRestart = false,
+            HintText = "Allow Formation Manager to place allied infantry into your formations. Disabled by default: only troops from your own party are managed.",
+            Order = 0)]
+        [SettingPropertyGroup("Allied Troop Control (Opt-In)")]
+        public bool ManageAlliedInfantry { get; set; } = false;
+
+        [SettingPropertyBool(
+            "Manage Allied Ranged Troops (Opt-In)",
+            RequireRestart = false,
+            HintText = "Allow Formation Manager to place allied foot archers and crossbowmen into your formations. Disabled by default.",
+            Order = 1)]
+        [SettingPropertyGroup("Allied Troop Control (Opt-In)")]
+        public bool ManageAlliedRanged { get; set; } = false;
+
+        [SettingPropertyBool(
+            "Manage Allied Cavalry (Opt-In)",
+            RequireRestart = false,
+            HintText = "Allow Formation Manager to place allied melee cavalry into your formations. Disabled by default.",
+            Order = 2)]
+        [SettingPropertyGroup("Allied Troop Control (Opt-In)")]
+        public bool ManageAlliedCavalry { get; set; } = false;
+
+        [SettingPropertyBool(
+            "Manage Allied Horse Archers (Opt-In)",
+            RequireRestart = false,
+            HintText = "Allow Formation Manager to place allied mounted archers into your formations. Disabled by default.",
+            Order = 3)]
+        [SettingPropertyGroup("Allied Troop Control (Opt-In)")]
+        public bool ManageAlliedHorseArchers { get; set; } = false;
     }
 }

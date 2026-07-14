@@ -37,14 +37,20 @@ namespace FormationManager.Patches
             if (!OrderOfBattleDefaultSession.IsApplyingDefaults)
                 return;
 
+            // The native deployment pass can recreate an empty default card. The
+            // post-deployment cleanup deliberately sends Unset through unchanged.
+            if (OrderOfBattleDefaultSession.IsClearingEmptyCards)
+                return;
+
             if (formation == null)
                 return;
 
             // The initialization patch uses Bannerlord's dedicated combined card
             // values for Infantry+Ranged and Cavalry+HorseArcher. Do not replace
-            // those explicit requests with the first matching roster class.
-            if (overriddenClass == DeploymentFormationClass.InfantryAndRanged ||
-                overriddenClass == DeploymentFormationClass.CavalryAndHorseArcher)
+            // an explicit request—single-class included—with the first matching
+            // roster class. The layout snapshot has already inspected the actual
+            // assigned OOB agents, which is authoritative for modded troop types.
+            if (overriddenClass != DeploymentFormationClass.Unset)
                 return;
 
             int idx = formation.Index;
@@ -99,7 +105,7 @@ namespace FormationManager.Patches
                 var element = mainParty.MemberRoster.GetElementCopyAtIndex(i);
                 if (element.Character == null)
                     continue;
-                if (element.Character == Hero.MainHero?.CharacterObject)
+                if (!TroopControlScope.IsEligibleTroop(element.Character))
                     continue;
 
                 int readyCount = element.Number - element.WoundedNumber;
@@ -128,10 +134,10 @@ namespace FormationManager.Patches
                 {
                     var element = mainParty.MemberRoster.GetElementCopyAtIndex(i);
                     if (element.Character == null) continue;
-                    if (element.Character == Hero.MainHero?.CharacterObject) continue;
+                    if (!TroopControlScope.IsEligibleTroop(element.Character)) continue;
                     if (element.Number <= element.WoundedNumber) continue;
 
-                    int[] assignedIndices = FormationAssignmentResolver.GetFormationIndices(element.Character, Settings.Instance);
+                    int[] assignedIndices = FormationAssignmentResolver.GetEffectiveFormationIndices(element.Character, Settings.Instance);
                     if (assignedIndices.Contains(formationIndex))
                     {
                         var deploymentClass = MapToDeploymentClass(element.Character);
@@ -142,22 +148,6 @@ namespace FormationManager.Patches
                     {
                         hasCustomTroops = true;
                     }
-                }
-            }
-
-            var mainHero = Hero.MainHero;
-            if (mainHero != null)
-            {
-                // Role defaults are deliberately for regular troop stacks. The main
-                // hero keeps the game's normal OOB handling unless explicitly saved.
-                int[] assignedIndices = FormationAssignmentStore.GetAssignments(mainHero.CharacterObject.StringId);
-                if (assignedIndices.Contains(formationIndex))
-                {
-                    return MapToDeploymentClass(mainHero.CharacterObject.DefaultFormationClass);
-                }
-                if (assignedIndices.Length > 0)
-                {
-                    hasCustomTroops = true;
                 }
             }
 
@@ -179,8 +169,9 @@ namespace FormationManager.Patches
         /// </summary>
         public static DeploymentFormationClass[] GetCompatibleFormationClasses(int formationIndex, Team team)
         {
+            var settings = Settings.Instance;
             var assignedClasses = team.ActiveAgents
-                .Where(agent => agent != null && agent.IsHuman && !agent.IsMount && !agent.IsMainAgent &&
+                .Where(agent => settings != null && TroopControlScope.ShouldManage(agent, settings) &&
                                 agent.Formation != null && agent.Formation.Index == formationIndex && agent.Character != null)
                 .Select(agent => MapToDeploymentClass(agent.Character))
                 .Where(deploymentClass => deploymentClass != DeploymentFormationClass.Unset)
@@ -297,8 +288,10 @@ namespace FormationManager.Patches
     {
         private static Mission? _mission;
         private static bool _isApplyingDefaults;
+        private static bool _isClearingEmptyCards;
 
         public static bool IsApplyingDefaults => _isApplyingDefaults && _mission == Mission.Current;
+        public static bool IsClearingEmptyCards => IsApplyingDefaults && _isClearingEmptyCards;
 
         public static void Begin(Mission mission)
         {
@@ -309,6 +302,20 @@ namespace FormationManager.Patches
         public static void Complete()
         {
             _isApplyingDefaults = false;
+            _isClearingEmptyCards = false;
+        }
+
+        public static void ClearEmptyCards(Action clear)
+        {
+            _isClearingEmptyCards = true;
+            try
+            {
+                clear();
+            }
+            finally
+            {
+                _isClearingEmptyCards = false;
+            }
         }
     }
 
@@ -347,12 +354,12 @@ namespace FormationManager.Patches
                     return;
                 }
 
-                var assignmentPlan = OobDefaultAssignmentPlan.ForActiveAgents(team, settings);
+                var layout = OobFormationLayout.ForActiveAgents(team, settings);
 
                 // 1. Establish default preview positions. These are only a starting
                 // point: selecting classes or changing weights afterwards uses the
                 // game's normal OOB controls and is never reapplied by this patch.
-                OobPreviewAssignmentApplier.Apply(team, assignmentPlan, settings, "initial plan");
+                OobPreviewAssignmentApplier.Apply(team, layout, settings, "initial plan");
 
                 // 2. Seed only the initial card types. OrderOfBattleDefaultSession
                 // remains active while RefreshFormation runs, then is completed in
@@ -401,7 +408,7 @@ namespace FormationManager.Patches
                 }
 
                 // 3. Show the default split in the card counts and weights.
-                OobWeightDistributor.DistributeWeights(__instance);
+                OobWeightDistributor.DistributeWeights(__instance, layout);
 
                 foreach (var item in formationsList)
                     item.OnSizeChanged();
@@ -419,12 +426,30 @@ namespace FormationManager.Patches
                 // Native OOB applies its class-pool weights in OnUnitDeployed.
                 // Reapply the plan afterwards so the selected agents—not merely
                 // an equivalent number of their native class—remain in each slot.
-                OobPreviewAssignmentApplier.Apply(team, assignmentPlan, settings, "after native class-pool distribution");
+                OobPreviewAssignmentApplier.Apply(team, layout, settings, "after native class-pool distribution");
+
+                // OnUnitDeployed may recreate a vanilla default card even when no
+                // managed agent belongs in that formation. Clear those cards after
+                // the final exact placement, bypassing our normal default seeding.
+                OrderOfBattleDefaultSession.ClearEmptyCards(() =>
+                {
+                    foreach (var item in formationsList)
+                    {
+                        if (item.Formation == null || layout.GetFormationCount(item.Formation.Index) != 0)
+                            continue;
+
+                        item.RefreshFormation(item.Formation, DeploymentFormationClass.Unset, false);
+                        Logger.Log($"[OrderOfBattleVMInitializePatch] Cleared empty formation {item.Formation.Index + 1} after native deployment.");
+                    }
+                });
                 foreach (var item in formationsList)
                     item.OnSizeChanged();
-                OobWeightDistributor.LockManagedSliders(__instance);
+                OobWeightDistributor.LockManagedSliders(__instance, layout);
 
-                Logger.Log("[OrderOfBattleVMInitializePatch] Defaults applied; native OOB controls are now unlocked.");
+                string sliderState = settings.LockManagedOobSliders && FormationAssignmentResolver.HasCustomDefaults(settings)
+                    ? "managed native OOB sliders are locked"
+                    : "native OOB sliders remain available";
+                Logger.Log($"[OrderOfBattleVMInitializePatch] Defaults applied; {sliderState}.");
             }
             finally
             {

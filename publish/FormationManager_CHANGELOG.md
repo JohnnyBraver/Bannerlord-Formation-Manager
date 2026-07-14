@@ -1,5 +1,20 @@
 # Changelog - Formation Manager
 
+## [v0.4.1] - 2026-07-14
+
+### Added
+- **Managed OOB Slider Lock**: Optionally lock Bannerlord's native OOB weight sliders for cards seeded by Formation Manager. Enabled by default; turn it off to rebalance those cards manually.
+- **Opt-In Allied Troop Control**: Allied infantry, ranged troops, cavalry, and horse archers are no longer placed in your formations by default. Each class can be enabled separately in the new **Allied Troop Control (Opt-In)** MCM section.
+
+### Changed
+- **Clear Pre-Battle and Mid-Battle Boundaries**: OOB uses a complete deployment plan for exact troop placement, while the optional mid-battle system remains limited to mount-state and out-of-ammo reactions. Both respect the same regular-troop eligibility rules.
+- **Hero Boundaries**: Formation Manager no longer shows assignment controls for heroes or changes their formation. Bannerlord keeps manual captain and elite-formation placement intact.
+
+### Fixed
+- **Correct OOB Card Classes**: An OOB card class determined from the actual agents assigned to it is no longer overwritten by a broader roster fallback. This prevents modded infantry formations from being changed into cavalry cards.
+- **Target-Only Surplus Splits**: Advanced plans with targets but no weights now use their target ratio for surplus troops instead of silently favouring a fallback formation.
+- **Clean Empty OOB Cards**: Empty Formation Manager slots are cleared again after Bannerlord's native deployment pass, so they cannot retain or recreate stale native card types.
+
 ## [v0.4.0] - 2026-07-11
 
 ### Added
