@@ -96,7 +96,7 @@ namespace FormationManager
             1, 8,
             "0",
             RequireRestart = false,
-            HintText = "Default slot for bow-using foot archers.",
+            HintText = "Default slot for bow-using foot archers and slingers.",
             Order = 7)]
         [SettingPropertyGroup("Troop Role Defaults", GroupOrder = 1)]
         public int FootArcherFormation { get; set; } = 2;
@@ -126,7 +126,7 @@ namespace FormationManager
             1, 8,
             "0",
             RequireRestart = false,
-            HintText = "Default slot for mounted bow or crossbow troops.",
+            HintText = "Default slot for mounted bow, crossbow, or sling troops.",
             Order = 10)]
         [SettingPropertyGroup("Troop Role Defaults", GroupOrder = 1)]
         public int HorseArcherRoleFormation { get; set; } = 4;

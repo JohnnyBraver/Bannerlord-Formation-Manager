@@ -1,5 +1,10 @@
 # Changelog - Formation Manager
 
+## [v0.5.1] - 2026-07-14
+
+### Changed
+- **Troop Classifier v0.1.1**: Requires the updated classifier for reliable crafted-javelin skirmishers and sling-equipped archer roles.
+
 ## [v0.5.0] - 2026-07-14
 
 ### Added
