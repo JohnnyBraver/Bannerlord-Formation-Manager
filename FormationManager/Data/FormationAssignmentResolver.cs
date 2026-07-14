@@ -3,6 +3,7 @@ using System.Collections.Generic;
 using System.Linq;
 using TaleWorlds.Core;
 using TaleWorlds.MountAndBlade;
+using TroopClassifier;
 
 namespace FormationManager.Data
 {
@@ -78,12 +79,12 @@ namespace FormationManager.Data
             {
                 // The OOB plan applies exact custom counts once the deployment agents
                 // exist. Reinforcements without that roster context use the role default.
-                return GetDefaultFormationIndex(character, settings);
+                return GetDefaultFormationIndex(agent, character, settings);
             }
 
             int[] formationIndices = GetActivePlanFormationIndices(character, settings);
             if (formationIndices.Length == 0)
-                return GetDefaultFormationIndex(character, settings);
+                return GetDefaultFormationIndex(agent, character, settings);
 
             if (formationIndices.Length == 1 || agent == null)
                 return formationIndices[0];
@@ -96,11 +97,14 @@ namespace FormationManager.Data
         }
 
         public static int GetDefaultFormationIndex(BasicCharacterObject character, Settings? settings)
+            => GetDefaultFormationIndex(null, character, settings);
+
+        public static int GetDefaultFormationIndex(Agent? agent, BasicCharacterObject character, Settings? settings)
         {
             if (character == null)
                 return 0;
 
-            if (TryGetConfiguredDefaultFormationIndex(character, settings, out int formationIndex))
+            if (TryGetConfiguredDefaultFormationIndex(agent, character, settings, out int formationIndex))
                 return formationIndex;
 
             return GetVanillaFormationIndex(character.DefaultFormationClass);
@@ -234,7 +238,8 @@ namespace FormationManager.Data
 
             if (settings.UsePartyManagerRoleDefaults)
             {
-                return IsValidConfiguredFormation(settings.FrontlineInfantryFormation) ||
+                return IsValidConfiguredFormation(settings.LightInfantryFormation) ||
+                       IsValidConfiguredFormation(settings.ShieldInfantryFormation) ||
                        IsValidConfiguredFormation(settings.ShockInfantryFormation) ||
                        IsValidConfiguredFormation(settings.PikeInfantryFormation) ||
                        IsValidConfiguredFormation(settings.SkirmisherFormation) ||
@@ -249,14 +254,24 @@ namespace FormationManager.Data
                    IsValidConfiguredFormation(settings.CavalryFormation);
         }
 
-        private static bool TryGetConfiguredDefaultFormationIndex(BasicCharacterObject character, Settings? settings, out int formationIndex)
+        internal static bool UsesAgentRoleDefaults(BasicCharacterObject character, Settings? settings)
+        {
+            if (character == null || settings?.UsePartyManagerRoleDefaults != true || settings.UseSpawnedEquipmentClassification != true)
+                return false;
+
+            return GetActivePlanFormationIndices(character, settings).Length == 0;
+        }
+
+        private static bool TryGetConfiguredDefaultFormationIndex(Agent? agent, BasicCharacterObject character, Settings? settings, out int formationIndex)
         {
             formationIndex = 0;
             if (settings == null)
                 return false;
 
             int configuredFormation = settings.UsePartyManagerRoleDefaults
-                ? GetRoleFormation(PartyManagerRoleClassifier.Classify(character), settings)
+                ? GetRoleFormation(settings.UseSpawnedEquipmentClassification && agent != null
+                    ? TroopRoleClassifier.Classify(agent)
+                    : TroopRoleClassifier.Classify(character), settings)
                 : GetNativeClassFormation(character.DefaultFormationClass, settings);
             if (!IsValidConfiguredFormation(configuredFormation))
                 return false;
@@ -285,25 +300,27 @@ namespace FormationManager.Data
             }
         }
 
-        private static int GetRoleFormation(PartyManagerRole role, Settings settings)
+        private static int GetRoleFormation(TroopRole role, Settings settings)
         {
             switch (role)
             {
-                case PartyManagerRole.FrontlineInfantry:
-                    return settings.FrontlineInfantryFormation;
-                case PartyManagerRole.ShockInfantry:
+                case TroopRole.LightInfantry:
+                    return settings.LightInfantryFormation;
+                case TroopRole.ShieldInfantry:
+                    return settings.ShieldInfantryFormation;
+                case TroopRole.ShockInfantry:
                     return settings.ShockInfantryFormation;
-                case PartyManagerRole.Skirmisher:
+                case TroopRole.Skirmisher:
                     return settings.SkirmisherFormation;
-                case PartyManagerRole.FootArcher:
+                case TroopRole.FootArcher:
                     return settings.FootArcherFormation;
-                case PartyManagerRole.Crossbowman:
+                case TroopRole.Crossbowman:
                     return settings.CrossbowmanFormation;
-                case PartyManagerRole.MeleeCavalry:
+                case TroopRole.MeleeCavalry:
                     return settings.MeleeCavalryRoleFormation;
-                case PartyManagerRole.HorseArcher:
+                case TroopRole.HorseArcher:
                     return settings.HorseArcherRoleFormation;
-                case PartyManagerRole.PikeInfantry:
+                case TroopRole.PikeInfantry:
                     return settings.PikeInfantryFormation;
                 default:
                     return settings.InfantryFormation;

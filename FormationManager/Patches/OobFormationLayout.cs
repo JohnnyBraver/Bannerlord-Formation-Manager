@@ -62,6 +62,25 @@ namespace FormationManager.Patches
 
         private void AddStack(BasicCharacterObject character, int troopCount, List<Agent> agents, Settings? settings)
         {
+            // Role defaults deliberately use each spawned agent instead of the
+            // troop template. One troop stack may contain different rolled kits.
+            // Explicit troop plans remain stack-level and take precedence.
+            if (FormationAssignmentResolver.UsesAgentRoleDefaults(character, settings))
+            {
+                foreach (Agent agent in agents)
+                {
+                    int formationIndex = FormationAssignmentResolver.GetDefaultFormationIndex(agent, character, settings);
+                    _agentFormationIndices[agent.Index] = formationIndex;
+                    _formationCounts[formationIndex]++;
+
+                    int classIndex = (int)RefreshFormationPatch.MapToDeploymentClass(agent);
+                    if (classIndex >= 0 && classIndex < 7)
+                        _formationClassCounts[formationIndex, classIndex]++;
+                }
+
+                return;
+            }
+
             Dictionary<int, int> allocatedCounts;
             if (FormationAssignmentResolver.TryGetEvenSplitTargets(character, out int[] evenTargets, settings))
             {

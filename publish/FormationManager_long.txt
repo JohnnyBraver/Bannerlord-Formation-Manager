@@ -9,11 +9,12 @@
 [size=4][b]Main features[/b][/size]
 [size=3][color=#D4D4D8]- Party Screen Badges: Assign troops to formation numbers (I-VIII) directly from the party screen.
 - Two-Formation Splits: Give a troop stack a second formation badge to split it evenly between two groups.
-- Troop Role Defaults: Configure default slots for frontline, shock, pike, skirmisher, archer, crossbow, cavalry, and horse-archer roles.
+- Troop Role Defaults: Configure slots for light infantry, shield infantry, shock, pike, skirmisher, archer, crossbow, cavalry, and horse-archer roles. Role classification is supplied by the required Troop Classifier module.
 - Editable Order of Battle: Start from your defaults, then adjust formation types and native OOB weights for the current battle.
 - Persistent Assignments: Assignments are saved automatically per campaign main hero.[/color][/size]
 
 [size=4][b]Requirements[/b][/size]
 [size=3][color=#D4D4D8]- Harmony
 - UIExtenderEx
-- MCM (Mod Configuration Menu)[/color][/size]
+- MCM (Mod Configuration Menu)
+- Troop Classifier[/color][/size]

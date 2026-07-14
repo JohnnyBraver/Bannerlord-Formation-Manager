@@ -5,9 +5,9 @@
     <ImplicitUsings>enable</ImplicitUsings>
     <Nullable>enable</Nullable>
     <OutputType>Library</OutputType>
-    <Version>0.4.1</Version>
-    <AssemblyVersion>0.4.1</AssemblyVersion>
-    <FileVersion>0.4.1</FileVersion>
+    <Version>0.5.0</Version>
+    <AssemblyVersion>0.5.0</AssemblyVersion>
+    <FileVersion>0.5.0</FileVersion>
     <AppendTargetFrameworkToOutputPath>false</AppendTargetFrameworkToOutputPath>
     <CopyLocalLockFileAssemblies>false</CopyLocalLockFileAssemblies>
     <BannerlordGameBin Condition="'$(BannerlordGameBin)' == ''">E:\SteamLibrary\steamapps\common\Mount &amp; Blade II Bannerlord\bin\Win64_Shipping_Client</BannerlordGameBin>
@@ -20,6 +20,9 @@
 
   <ItemGroup>
     <PackageReference Include="Microsoft.NETFramework.ReferenceAssemblies" Version="1.0.3" PrivateAssets="All" />
+    <ProjectReference Include="..\..\Bannerlord-Troop-Classifier\TroopClassifier\TroopClassifier.csproj">
+      <Private>False</Private>
+    </ProjectReference>
     <Reference Include="0Harmony">
       <HintPath>$(HarmonyPath)</HintPath>
       <Private>False</Private>

@@ -1,5 +1,15 @@
 # Changelog - Formation Manager
 
+## [v0.5.0] - 2026-07-14
+
+### Added
+- **Light Infantry Formation**: Configure a separate default slot for unshielded, non-specialist foot melee troops alongside the renamed **Shield Infantry Formation** setting.
+- **Spawned Equipment Classification Toggle**: Role defaults use the shared classifier's spawned-equipment result by default. Turn it off to use standard troop equipment-set classification, preserving the pre-v0.5 behaviour.
+- **Troop Classifier Dependency**: Formation Manager now uses the shared **Troop Classifier** module, establishing one role vocabulary and one set of weapon rules for compatible mods.
+
+### Changed
+- **Settings Reorganization**: Settings now follow the battle setup flow: general controls, role defaults, multi-formation splits, mid-battle reassignment, then allied troop control. Out-of-ammo backline reassignment is now enabled by default.
+
 ## [v0.4.1] - 2026-07-14
 
 ### Added

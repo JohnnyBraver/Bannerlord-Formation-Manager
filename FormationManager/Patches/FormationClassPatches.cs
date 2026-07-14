@@ -7,6 +7,7 @@ using TaleWorlds.MountAndBlade;
 using TaleWorlds.CampaignSystem;
 using TaleWorlds.CampaignSystem.Party;
 using TaleWorlds.MountAndBlade.ViewModelCollection.OrderOfBattle;
+using TroopClassifier;
 using FormationManager.Data;
 
 namespace FormationManager.Patches
@@ -241,14 +242,37 @@ namespace FormationManager.Patches
             if (settings == null || !settings.UsePartyManagerRoleDefaults)
                 return MapToDeploymentClass(character.DefaultFormationClass);
 
-            switch (PartyManagerRoleClassifier.Classify(character))
+            switch (TroopRoleClassifier.Classify(character))
             {
-                case PartyManagerRole.FootArcher:
-                case PartyManagerRole.Crossbowman:
+                case TroopRole.FootArcher:
+                case TroopRole.Crossbowman:
                     return DeploymentFormationClass.Ranged;
-                case PartyManagerRole.MeleeCavalry:
+                case TroopRole.MeleeCavalry:
                     return DeploymentFormationClass.Cavalry;
-                case PartyManagerRole.HorseArcher:
+                case TroopRole.HorseArcher:
+                    return DeploymentFormationClass.HorseArcher;
+                default:
+                    return DeploymentFormationClass.Infantry;
+            }
+        }
+
+        public static DeploymentFormationClass MapToDeploymentClass(Agent agent)
+        {
+            if (agent == null)
+                return DeploymentFormationClass.Unset;
+
+            var settings = Settings.Instance;
+            if (settings == null || !settings.UsePartyManagerRoleDefaults || !settings.UseSpawnedEquipmentClassification)
+                return MapToDeploymentClass(agent.Character?.DefaultFormationClass ?? FormationClass.Infantry);
+
+            switch (TroopRoleClassifier.Classify(agent))
+            {
+                case TroopRole.FootArcher:
+                case TroopRole.Crossbowman:
+                    return DeploymentFormationClass.Ranged;
+                case TroopRole.MeleeCavalry:
+                    return DeploymentFormationClass.Cavalry;
+                case TroopRole.HorseArcher:
                     return DeploymentFormationClass.HorseArcher;
                 default:
                     return DeploymentFormationClass.Infantry;
