@@ -15,7 +15,7 @@ namespace FormationManager.Data
     internal static class FormationAssignmentResolver
     {
         public static bool HasCustomDefaults(Settings? settings)
-            => FormationAssignmentStore.HasAnyAssignments || HasConfiguredDefaultFormations(settings);
+            => FormationAssignmentStore.HasAnyAssignments || FormationAssignmentStore.HasAnyRoleAssignments || HasConfiguredDefaultFormations(settings);
 
         /// <summary>
         /// Returns only formations explicitly active in the troop's plan. For a
@@ -44,6 +44,10 @@ namespace FormationManager.Data
             int[] explicitAssignments = FormationAssignmentStore.GetAssignments(character.StringId);
             if (explicitAssignments.Length > 0)
                 return explicitAssignments;
+
+            int[] roleAssignments = FormationAssignmentStore.GetRoleAssignments(TroopRoleClassifier.Classify(character));
+            if (roleAssignments.Length > 0)
+                return roleAssignments;
 
             return Array.Empty<int>();
         }
@@ -132,10 +136,17 @@ namespace FormationManager.Data
             }
 
             int[] legacyAssignments = FormationAssignmentStore.GetAssignments(character.StringId);
-            if (legacyAssignments.Length < 2)
+            if (legacyAssignments.Length >= 2)
+            {
+                formationIndices = legacyAssignments;
+                return true;
+            }
+
+            int[] roleAssignments = FormationAssignmentStore.GetRoleAssignments(TroopRoleClassifier.Classify(character));
+            if (roleAssignments.Length < 2)
                 return false;
 
-            formationIndices = legacyAssignments;
+            formationIndices = roleAssignments;
             return true;
         }
 
@@ -268,10 +279,18 @@ namespace FormationManager.Data
             if (settings == null)
                 return false;
 
+            TroopRole role = settings.UseSpawnedEquipmentClassification && agent != null
+                ? TroopRoleClassifier.Classify(agent)
+                : TroopRoleClassifier.Classify(character);
+            int[] roleAssignments = FormationAssignmentStore.GetRoleAssignments(role);
+            if (roleAssignments.Length > 0)
+            {
+                formationIndex = roleAssignments[0];
+                return true;
+            }
+
             int configuredFormation = settings.UsePartyManagerRoleDefaults
-                ? GetRoleFormation(settings.UseSpawnedEquipmentClassification && agent != null
-                    ? TroopRoleClassifier.Classify(agent)
-                    : TroopRoleClassifier.Classify(character), settings)
+                ? GetRoleFormation(role, settings)
                 : GetNativeClassFormation(character.DefaultFormationClass, settings);
             if (!IsValidConfiguredFormation(configuredFormation))
                 return false;

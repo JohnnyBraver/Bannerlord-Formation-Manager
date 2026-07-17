@@ -52,4 +52,9 @@
                   DoNotAcceptEvents="true" />
     </Children>
   </ButtonWidget>
+  <Widget WidthSizePolicy="Fixed" HeightSizePolicy="Fixed" SuggestedWidth="32" SuggestedHeight="32" HorizontalAlignment="Right" VerticalAlignment="Center" MarginRight="165" IsVisible="@IsRolePlanBadgeVisible" Sprite="BlankWhiteSquare_9" Color="#332719FF">
+    <Children>
+      <TextWidget WidthSizePolicy="StretchToParent" HeightSizePolicy="StretchToParent" Text="R" Brush="Party.Text.Tuple" Brush.FontSize="18" Brush.TextHorizontalAlignment="Center" Brush.TextVerticalAlignment="Center" DoNotAcceptEvents="true" />
+    </Children>
+  </Widget>
 </Prefab>

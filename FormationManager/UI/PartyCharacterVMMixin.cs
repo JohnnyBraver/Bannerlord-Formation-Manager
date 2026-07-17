@@ -11,6 +11,7 @@ using TaleWorlds.CampaignSystem;
 using TaleWorlds.CampaignSystem.Party;
 using TaleWorlds.CampaignSystem.ViewModelCollection.Party;
 using TaleWorlds.Library;
+using TroopClassifier;
 
 namespace FormationManager.UI
 {
@@ -73,6 +74,27 @@ namespace FormationManager.UI
             get => _isSecondaryFormationBadgeVisible;
             set { if (_isSecondaryFormationBadgeVisible != value) { _isSecondaryFormationBadgeVisible = value; OnPropertyChanged(nameof(IsSecondaryFormationBadgeVisible)); } }
         }
+
+        [DataSourceProperty] public bool IsRolePlanBadgeVisible => IsPlayerHeroRow && FormationAssignmentStore.HasAnyRoleAssignments;
+        [DataSourceProperty] public bool IsRolePlanEditorVisible => IsPlayerHeroRow && (ViewModel?.IsSelected ?? false);
+        [DataSourceProperty] public string LightInfantryRolePlanLabel => GetRolePlanLabel(TroopRole.LightInfantry);
+        [DataSourceProperty] public string ShieldInfantryRolePlanLabel => GetRolePlanLabel(TroopRole.ShieldInfantry);
+        [DataSourceProperty] public string ShockInfantryRolePlanLabel => GetRolePlanLabel(TroopRole.ShockInfantry);
+        [DataSourceProperty] public string PikeInfantryRolePlanLabel => GetRolePlanLabel(TroopRole.PikeInfantry);
+        [DataSourceProperty] public string SkirmisherRolePlanLabel => GetRolePlanLabel(TroopRole.Skirmisher);
+        [DataSourceProperty] public string FootArcherRolePlanLabel => GetRolePlanLabel(TroopRole.FootArcher);
+        [DataSourceProperty] public string CrossbowmanRolePlanLabel => GetRolePlanLabel(TroopRole.Crossbowman);
+        [DataSourceProperty] public string MeleeCavalryRolePlanLabel => GetRolePlanLabel(TroopRole.MeleeCavalry);
+        [DataSourceProperty] public string HorseArcherRolePlanLabel => GetRolePlanLabel(TroopRole.HorseArcher);
+        [DataSourceProperty] public string LightInfantrySecondaryRolePlanLabel => GetSecondaryRolePlanLabel(TroopRole.LightInfantry);
+        [DataSourceProperty] public string ShieldInfantrySecondaryRolePlanLabel => GetSecondaryRolePlanLabel(TroopRole.ShieldInfantry);
+        [DataSourceProperty] public string ShockInfantrySecondaryRolePlanLabel => GetSecondaryRolePlanLabel(TroopRole.ShockInfantry);
+        [DataSourceProperty] public string PikeInfantrySecondaryRolePlanLabel => GetSecondaryRolePlanLabel(TroopRole.PikeInfantry);
+        [DataSourceProperty] public string SkirmisherSecondaryRolePlanLabel => GetSecondaryRolePlanLabel(TroopRole.Skirmisher);
+        [DataSourceProperty] public string FootArcherSecondaryRolePlanLabel => GetSecondaryRolePlanLabel(TroopRole.FootArcher);
+        [DataSourceProperty] public string CrossbowmanSecondaryRolePlanLabel => GetSecondaryRolePlanLabel(TroopRole.Crossbowman);
+        [DataSourceProperty] public string MeleeCavalrySecondaryRolePlanLabel => GetSecondaryRolePlanLabel(TroopRole.MeleeCavalry);
+        [DataSourceProperty] public string HorseArcherSecondaryRolePlanLabel => GetSecondaryRolePlanLabel(TroopRole.HorseArcher);
 
         [DataSourceProperty] public bool IsCustomEditorVisible => IsFormationBadgeVisible;
         [DataSourceProperty] public bool IsFormationEditorVisible => IsFormationBadgeVisible &&
@@ -171,6 +193,79 @@ namespace FormationManager.UI
             else FormationAssignmentStore.SetAssignment(character.StringId, next);
             FormationAssignmentStore.Save();
             Refresh();
+        }
+
+        [DataSourceMethod] public void ExecuteCycleLightInfantryRolePlan() => CycleRolePlan(TroopRole.LightInfantry);
+        [DataSourceMethod] public void ExecuteCycleShieldInfantryRolePlan() => CycleRolePlan(TroopRole.ShieldInfantry);
+        [DataSourceMethod] public void ExecuteCycleShockInfantryRolePlan() => CycleRolePlan(TroopRole.ShockInfantry);
+        [DataSourceMethod] public void ExecuteCyclePikeInfantryRolePlan() => CycleRolePlan(TroopRole.PikeInfantry);
+        [DataSourceMethod] public void ExecuteCycleSkirmisherRolePlan() => CycleRolePlan(TroopRole.Skirmisher);
+        [DataSourceMethod] public void ExecuteCycleFootArcherRolePlan() => CycleRolePlan(TroopRole.FootArcher);
+        [DataSourceMethod] public void ExecuteCycleCrossbowmanRolePlan() => CycleRolePlan(TroopRole.Crossbowman);
+        [DataSourceMethod] public void ExecuteCycleMeleeCavalryRolePlan() => CycleRolePlan(TroopRole.MeleeCavalry);
+        [DataSourceMethod] public void ExecuteCycleHorseArcherRolePlan() => CycleRolePlan(TroopRole.HorseArcher);
+        [DataSourceMethod] public void ExecuteCycleSecondaryLightInfantryRolePlan() => CycleSecondaryRolePlan(TroopRole.LightInfantry);
+        [DataSourceMethod] public void ExecuteCycleSecondaryShieldInfantryRolePlan() => CycleSecondaryRolePlan(TroopRole.ShieldInfantry);
+        [DataSourceMethod] public void ExecuteCycleSecondaryShockInfantryRolePlan() => CycleSecondaryRolePlan(TroopRole.ShockInfantry);
+        [DataSourceMethod] public void ExecuteCycleSecondaryPikeInfantryRolePlan() => CycleSecondaryRolePlan(TroopRole.PikeInfantry);
+        [DataSourceMethod] public void ExecuteCycleSecondarySkirmisherRolePlan() => CycleSecondaryRolePlan(TroopRole.Skirmisher);
+        [DataSourceMethod] public void ExecuteCycleSecondaryFootArcherRolePlan() => CycleSecondaryRolePlan(TroopRole.FootArcher);
+        [DataSourceMethod] public void ExecuteCycleSecondaryCrossbowmanRolePlan() => CycleSecondaryRolePlan(TroopRole.Crossbowman);
+        [DataSourceMethod] public void ExecuteCycleSecondaryMeleeCavalryRolePlan() => CycleSecondaryRolePlan(TroopRole.MeleeCavalry);
+        [DataSourceMethod] public void ExecuteCycleSecondaryHorseArcherRolePlan() => CycleSecondaryRolePlan(TroopRole.HorseArcher);
+
+        private bool IsPlayerHeroRow => ViewModel?.Character is CharacterObject character &&
+                                        character.HeroObject != null && ReferenceEquals(character.HeroObject, Hero.MainHero);
+
+        private static string GetRolePlanLabel(TroopRole role)
+        {
+            int[] assignments = FormationAssignmentStore.GetRoleAssignments(role);
+            return assignments.Length > 0 ? Labels[assignments[0] + 1] : "+";
+        }
+
+        private static string GetSecondaryRolePlanLabel(TroopRole role)
+        {
+            int[] assignments = FormationAssignmentStore.GetRoleAssignments(role);
+            return assignments.Length > 1 ? Labels[assignments[1] + 1] : "+";
+        }
+
+        private void CycleRolePlan(TroopRole role)
+        {
+            int[] assignments = FormationAssignmentStore.GetRoleAssignments(role);
+            int next = assignments.Length > 0 ? assignments[0] + 1 : 0;
+            if (next > 7) FormationAssignmentStore.ClearRoleAssignment(role);
+            else FormationAssignmentStore.SetRoleAssignment(role, next);
+            FormationAssignmentStore.Save();
+            RefreshRolePlanBindings();
+        }
+
+        private void CycleSecondaryRolePlan(TroopRole role)
+        {
+            int[] assignments = FormationAssignmentStore.GetRoleAssignments(role);
+            if (assignments.Length == 0)
+            {
+                FormationAssignmentStore.SetRoleAssignment(role, 0);
+            }
+            else
+            {
+                int primary = assignments[0];
+                int next = assignments.Length > 1 ? assignments[1] + 1 : 0;
+                while (next == primary) next++;
+                if (next > 7) FormationAssignmentStore.ClearSecondaryRoleAssignment(role);
+                else FormationAssignmentStore.SetSecondaryRoleAssignment(role, next);
+            }
+            FormationAssignmentStore.Save();
+            RefreshRolePlanBindings();
+        }
+
+        private void RefreshRolePlanBindings()
+        {
+            OnPropertyChanged(nameof(IsRolePlanBadgeVisible));
+            foreach (string role in new[] { "LightInfantry", "ShieldInfantry", "ShockInfantry", "PikeInfantry", "Skirmisher", "FootArcher", "Crossbowman", "MeleeCavalry", "HorseArcher" })
+            {
+                OnPropertyChanged($"{role}RolePlanLabel");
+                OnPropertyChanged($"{role}SecondaryRolePlanLabel");
+            }
         }
 
         [DataSourceMethod]
@@ -552,6 +647,8 @@ namespace FormationManager.UI
                 _selectedCustomFormationIndex = -1;
             OnPropertyChanged(nameof(IsFormationEditorVisible));
             OnPropertyChanged(nameof(IsFormationEditorSliderVisible));
+            OnPropertyChanged(nameof(IsRolePlanEditorVisible));
+            RefreshRolePlanBindings();
             NotifyEditorSelectionChanged();
         }
 

@@ -3,6 +3,7 @@ using System.Collections.Generic;
 using System.IO;
 using Newtonsoft.Json;
 using TaleWorlds.Library;
+using TroopClassifier;
 
 namespace FormationManager.Data
 {
@@ -20,6 +21,7 @@ namespace FormationManager.Data
         private static Dictionary<string, TroopDeploymentPlan> _deploymentPlans = new();
         private static Dictionary<string, TroopDeploymentPlan> _archivedDeploymentPlans = new();
         private static Dictionary<string, TroopDeploymentPlan> _pausedDeploymentPlans = new();
+        private static Dictionary<string, RoleAssignment> _roleAssignments = new();
         private static bool _isDirty;
 
         private static string GetConfigDir()
@@ -40,6 +42,7 @@ namespace FormationManager.Data
             _deploymentPlans = new Dictionary<string, TroopDeploymentPlan>();
             _archivedDeploymentPlans = new Dictionary<string, TroopDeploymentPlan>();
             _pausedDeploymentPlans = new Dictionary<string, TroopDeploymentPlan>();
+            _roleAssignments = new Dictionary<string, RoleAssignment>();
             _isDirty = false;
 
             string path = GetFilePath(heroId);
@@ -60,6 +63,8 @@ namespace FormationManager.Data
                     _archivedDeploymentPlans = data.ArchivedDeploymentPlans;
                 if (data?.PausedDeploymentPlans != null)
                     _pausedDeploymentPlans = data.PausedDeploymentPlans;
+                if (data?.RoleAssignments != null)
+                    _roleAssignments = data.RoleAssignments;
             }
             catch (Exception ex)
             {
@@ -88,7 +93,8 @@ namespace FormationManager.Data
                     SecondaryAssignments = _secondaryAssignments,
                     DeploymentPlans = _deploymentPlans,
                     ArchivedDeploymentPlans = _archivedDeploymentPlans,
-                    PausedDeploymentPlans = _pausedDeploymentPlans
+                    PausedDeploymentPlans = _pausedDeploymentPlans,
+                    RoleAssignments = _roleAssignments
                 };
                 string json = JsonConvert.SerializeObject(model, Formatting.Indented);
                 File.WriteAllText(GetFilePath(_currentHeroId), json);
@@ -175,6 +181,73 @@ namespace FormationManager.Data
         {
             if (_secondaryAssignments.Remove(troopId))
                 _isDirty = true;
+        }
+
+        /// <summary>Returns the saved one- or two-formation fallback for a role.</summary>
+        public static int[] GetRoleAssignments(TroopRole role)
+        {
+            if (!_roleAssignments.TryGetValue(role.ToString(), out var assignment))
+                return Array.Empty<int>();
+
+            bool hasPrimary = FormationPlanNormalizer.IsValidFormationIndex(assignment.PrimaryFormation);
+            bool hasSecondary = FormationPlanNormalizer.IsValidFormationIndex(assignment.SecondaryFormation) &&
+                                assignment.SecondaryFormation != assignment.PrimaryFormation;
+            if (hasPrimary && hasSecondary) return new[] { assignment.PrimaryFormation, assignment.SecondaryFormation };
+            if (hasPrimary) return new[] { assignment.PrimaryFormation };
+            if (hasSecondary) return new[] { assignment.SecondaryFormation };
+            return Array.Empty<int>();
+        }
+
+        public static bool HasAnyRoleAssignments => _roleAssignments.Keys.Any(key =>
+            Enum.TryParse(key, out TroopRole role) && GetRoleAssignments(role).Length > 0);
+
+        public static void SetRoleAssignment(TroopRole role, int formationIndex)
+        {
+            if (!FormationPlanNormalizer.IsValidFormationIndex(formationIndex))
+            {
+                ClearRoleAssignment(role);
+                return;
+            }
+
+            var assignment = GetOrCreateRoleAssignment(role);
+            assignment.PrimaryFormation = formationIndex;
+            if (assignment.SecondaryFormation == formationIndex) assignment.SecondaryFormation = -1;
+            _isDirty = true;
+        }
+
+        public static void SetSecondaryRoleAssignment(TroopRole role, int formationIndex)
+        {
+            var assignment = GetOrCreateRoleAssignment(role);
+            if (!FormationPlanNormalizer.IsValidFormationIndex(formationIndex) || formationIndex == assignment.PrimaryFormation)
+                assignment.SecondaryFormation = -1;
+            else
+                assignment.SecondaryFormation = formationIndex;
+            _isDirty = true;
+        }
+
+        public static void ClearRoleAssignment(TroopRole role)
+        {
+            if (_roleAssignments.Remove(role.ToString())) _isDirty = true;
+        }
+
+        public static void ClearSecondaryRoleAssignment(TroopRole role)
+        {
+            if (_roleAssignments.TryGetValue(role.ToString(), out var assignment) && assignment.SecondaryFormation >= 0)
+            {
+                assignment.SecondaryFormation = -1;
+                _isDirty = true;
+            }
+        }
+
+        private static RoleAssignment GetOrCreateRoleAssignment(TroopRole role)
+        {
+            string key = role.ToString();
+            if (!_roleAssignments.TryGetValue(key, out var assignment))
+            {
+                assignment = new RoleAssignment();
+                _roleAssignments[key] = assignment;
+            }
+            return assignment;
         }
 
         public static bool TryGetDeploymentPlan(string troopId, out TroopDeploymentPlan? plan)
@@ -302,6 +375,13 @@ namespace FormationManager.Data
             public Dictionary<string, TroopDeploymentPlan> DeploymentPlans { get; set; } = new();
             public Dictionary<string, TroopDeploymentPlan> ArchivedDeploymentPlans { get; set; } = new();
             public Dictionary<string, TroopDeploymentPlan> PausedDeploymentPlans { get; set; } = new();
+            public Dictionary<string, RoleAssignment> RoleAssignments { get; set; } = new();
+        }
+
+        public class RoleAssignment
+        {
+            public int PrimaryFormation { get; set; } = -1;
+            public int SecondaryFormation { get; set; } = -1;
         }
     }
 
