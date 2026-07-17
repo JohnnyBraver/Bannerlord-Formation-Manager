@@ -183,11 +183,21 @@ namespace FormationManager.Data
                 _isDirty = true;
         }
 
-        /// <summary>Returns the saved one- or two-formation fallback for a role.</summary>
+        /// <summary>
+        /// Returns the saved fallback formations for a role. Older saves carry a
+        /// primary/secondary pair; newer saves may include any number of slots.
+        /// </summary>
         public static int[] GetRoleAssignments(TroopRole role)
         {
             if (!_roleAssignments.TryGetValue(role.ToString(), out var assignment))
                 return Array.Empty<int>();
+
+            if (assignment.FormationIndices != null && assignment.FormationIndices.Count > 0)
+                return assignment.FormationIndices
+                    .Where(FormationPlanNormalizer.IsValidFormationIndex)
+                    .Distinct()
+                    .OrderBy(index => index)
+                    .ToArray();
 
             bool hasPrimary = FormationPlanNormalizer.IsValidFormationIndex(assignment.PrimaryFormation);
             bool hasSecondary = FormationPlanNormalizer.IsValidFormationIndex(assignment.SecondaryFormation) &&
@@ -212,6 +222,7 @@ namespace FormationManager.Data
             var assignment = GetOrCreateRoleAssignment(role);
             assignment.PrimaryFormation = formationIndex;
             if (assignment.SecondaryFormation == formationIndex) assignment.SecondaryFormation = -1;
+            assignment.FormationIndices = null;
             _isDirty = true;
         }
 
@@ -222,6 +233,30 @@ namespace FormationManager.Data
                 assignment.SecondaryFormation = -1;
             else
                 assignment.SecondaryFormation = formationIndex;
+            assignment.FormationIndices = null;
+            _isDirty = true;
+        }
+
+        /// <summary>Replaces a role's even-split formations with the supplied slots.</summary>
+        public static void SetRoleAssignments(TroopRole role, IEnumerable<int> formationIndices)
+        {
+            int[] normalized = formationIndices
+                .Where(FormationPlanNormalizer.IsValidFormationIndex)
+                .Distinct()
+                .OrderBy(index => index)
+                .ToArray();
+
+            if (normalized.Length == 0)
+            {
+                ClearRoleAssignment(role);
+                return;
+            }
+
+            var assignment = GetOrCreateRoleAssignment(role);
+            assignment.FormationIndices = normalized.ToList();
+            // Retain these fields as a readable fallback for older mod versions.
+            assignment.PrimaryFormation = normalized[0];
+            assignment.SecondaryFormation = normalized.Length > 1 ? normalized[1] : -1;
             _isDirty = true;
         }
 
@@ -382,6 +417,7 @@ namespace FormationManager.Data
         {
             public int PrimaryFormation { get; set; } = -1;
             public int SecondaryFormation { get; set; } = -1;
+            public List<int>? FormationIndices { get; set; }
         }
     }
 

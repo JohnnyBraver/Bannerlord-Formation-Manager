@@ -77,24 +77,78 @@ namespace FormationManager.UI
 
         [DataSourceProperty] public bool IsRolePlanBadgeVisible => IsPlayerHeroRow && FormationAssignmentStore.HasAnyRoleAssignments;
         [DataSourceProperty] public bool IsRolePlanEditorVisible => IsPlayerHeroRow && (ViewModel?.IsSelected ?? false);
-        [DataSourceProperty] public string LightInfantryRolePlanLabel => GetRolePlanLabel(TroopRole.LightInfantry);
-        [DataSourceProperty] public string ShieldInfantryRolePlanLabel => GetRolePlanLabel(TroopRole.ShieldInfantry);
-        [DataSourceProperty] public string ShockInfantryRolePlanLabel => GetRolePlanLabel(TroopRole.ShockInfantry);
-        [DataSourceProperty] public string PikeInfantryRolePlanLabel => GetRolePlanLabel(TroopRole.PikeInfantry);
-        [DataSourceProperty] public string SkirmisherRolePlanLabel => GetRolePlanLabel(TroopRole.Skirmisher);
-        [DataSourceProperty] public string FootArcherRolePlanLabel => GetRolePlanLabel(TroopRole.FootArcher);
-        [DataSourceProperty] public string CrossbowmanRolePlanLabel => GetRolePlanLabel(TroopRole.Crossbowman);
-        [DataSourceProperty] public string MeleeCavalryRolePlanLabel => GetRolePlanLabel(TroopRole.MeleeCavalry);
-        [DataSourceProperty] public string HorseArcherRolePlanLabel => GetRolePlanLabel(TroopRole.HorseArcher);
-        [DataSourceProperty] public string LightInfantrySecondaryRolePlanLabel => GetSecondaryRolePlanLabel(TroopRole.LightInfantry);
-        [DataSourceProperty] public string ShieldInfantrySecondaryRolePlanLabel => GetSecondaryRolePlanLabel(TroopRole.ShieldInfantry);
-        [DataSourceProperty] public string ShockInfantrySecondaryRolePlanLabel => GetSecondaryRolePlanLabel(TroopRole.ShockInfantry);
-        [DataSourceProperty] public string PikeInfantrySecondaryRolePlanLabel => GetSecondaryRolePlanLabel(TroopRole.PikeInfantry);
-        [DataSourceProperty] public string SkirmisherSecondaryRolePlanLabel => GetSecondaryRolePlanLabel(TroopRole.Skirmisher);
-        [DataSourceProperty] public string FootArcherSecondaryRolePlanLabel => GetSecondaryRolePlanLabel(TroopRole.FootArcher);
-        [DataSourceProperty] public string CrossbowmanSecondaryRolePlanLabel => GetSecondaryRolePlanLabel(TroopRole.Crossbowman);
-        [DataSourceProperty] public string MeleeCavalrySecondaryRolePlanLabel => GetSecondaryRolePlanLabel(TroopRole.MeleeCavalry);
-        [DataSourceProperty] public string HorseArcherSecondaryRolePlanLabel => GetSecondaryRolePlanLabel(TroopRole.HorseArcher);
+        [DataSourceProperty] public string LightInfantryRoleFormation1Label => GetRoleFormationLabel(TroopRole.LightInfantry, 0);
+        [DataSourceProperty] public string LightInfantryRoleFormation2Label => GetRoleFormationLabel(TroopRole.LightInfantry, 1);
+        [DataSourceProperty] public string LightInfantryRoleFormation3Label => GetRoleFormationLabel(TroopRole.LightInfantry, 2);
+        [DataSourceProperty] public string LightInfantryRoleFormation4Label => GetRoleFormationLabel(TroopRole.LightInfantry, 3);
+        [DataSourceProperty] public string LightInfantryRoleFormation5Label => GetRoleFormationLabel(TroopRole.LightInfantry, 4);
+        [DataSourceProperty] public string LightInfantryRoleFormation6Label => GetRoleFormationLabel(TroopRole.LightInfantry, 5);
+        [DataSourceProperty] public string LightInfantryRoleFormation7Label => GetRoleFormationLabel(TroopRole.LightInfantry, 6);
+        [DataSourceProperty] public string LightInfantryRoleFormation8Label => GetRoleFormationLabel(TroopRole.LightInfantry, 7);
+        [DataSourceProperty] public string ShieldInfantryRoleFormation1Label => GetRoleFormationLabel(TroopRole.ShieldInfantry, 0);
+        [DataSourceProperty] public string ShieldInfantryRoleFormation2Label => GetRoleFormationLabel(TroopRole.ShieldInfantry, 1);
+        [DataSourceProperty] public string ShieldInfantryRoleFormation3Label => GetRoleFormationLabel(TroopRole.ShieldInfantry, 2);
+        [DataSourceProperty] public string ShieldInfantryRoleFormation4Label => GetRoleFormationLabel(TroopRole.ShieldInfantry, 3);
+        [DataSourceProperty] public string ShieldInfantryRoleFormation5Label => GetRoleFormationLabel(TroopRole.ShieldInfantry, 4);
+        [DataSourceProperty] public string ShieldInfantryRoleFormation6Label => GetRoleFormationLabel(TroopRole.ShieldInfantry, 5);
+        [DataSourceProperty] public string ShieldInfantryRoleFormation7Label => GetRoleFormationLabel(TroopRole.ShieldInfantry, 6);
+        [DataSourceProperty] public string ShieldInfantryRoleFormation8Label => GetRoleFormationLabel(TroopRole.ShieldInfantry, 7);
+        [DataSourceProperty] public string ShockInfantryRoleFormation1Label => GetRoleFormationLabel(TroopRole.ShockInfantry, 0);
+        [DataSourceProperty] public string ShockInfantryRoleFormation2Label => GetRoleFormationLabel(TroopRole.ShockInfantry, 1);
+        [DataSourceProperty] public string ShockInfantryRoleFormation3Label => GetRoleFormationLabel(TroopRole.ShockInfantry, 2);
+        [DataSourceProperty] public string ShockInfantryRoleFormation4Label => GetRoleFormationLabel(TroopRole.ShockInfantry, 3);
+        [DataSourceProperty] public string ShockInfantryRoleFormation5Label => GetRoleFormationLabel(TroopRole.ShockInfantry, 4);
+        [DataSourceProperty] public string ShockInfantryRoleFormation6Label => GetRoleFormationLabel(TroopRole.ShockInfantry, 5);
+        [DataSourceProperty] public string ShockInfantryRoleFormation7Label => GetRoleFormationLabel(TroopRole.ShockInfantry, 6);
+        [DataSourceProperty] public string ShockInfantryRoleFormation8Label => GetRoleFormationLabel(TroopRole.ShockInfantry, 7);
+        [DataSourceProperty] public string PikeInfantryRoleFormation1Label => GetRoleFormationLabel(TroopRole.PikeInfantry, 0);
+        [DataSourceProperty] public string PikeInfantryRoleFormation2Label => GetRoleFormationLabel(TroopRole.PikeInfantry, 1);
+        [DataSourceProperty] public string PikeInfantryRoleFormation3Label => GetRoleFormationLabel(TroopRole.PikeInfantry, 2);
+        [DataSourceProperty] public string PikeInfantryRoleFormation4Label => GetRoleFormationLabel(TroopRole.PikeInfantry, 3);
+        [DataSourceProperty] public string PikeInfantryRoleFormation5Label => GetRoleFormationLabel(TroopRole.PikeInfantry, 4);
+        [DataSourceProperty] public string PikeInfantryRoleFormation6Label => GetRoleFormationLabel(TroopRole.PikeInfantry, 5);
+        [DataSourceProperty] public string PikeInfantryRoleFormation7Label => GetRoleFormationLabel(TroopRole.PikeInfantry, 6);
+        [DataSourceProperty] public string PikeInfantryRoleFormation8Label => GetRoleFormationLabel(TroopRole.PikeInfantry, 7);
+        [DataSourceProperty] public string SkirmisherRoleFormation1Label => GetRoleFormationLabel(TroopRole.Skirmisher, 0);
+        [DataSourceProperty] public string SkirmisherRoleFormation2Label => GetRoleFormationLabel(TroopRole.Skirmisher, 1);
+        [DataSourceProperty] public string SkirmisherRoleFormation3Label => GetRoleFormationLabel(TroopRole.Skirmisher, 2);
+        [DataSourceProperty] public string SkirmisherRoleFormation4Label => GetRoleFormationLabel(TroopRole.Skirmisher, 3);
+        [DataSourceProperty] public string SkirmisherRoleFormation5Label => GetRoleFormationLabel(TroopRole.Skirmisher, 4);
+        [DataSourceProperty] public string SkirmisherRoleFormation6Label => GetRoleFormationLabel(TroopRole.Skirmisher, 5);
+        [DataSourceProperty] public string SkirmisherRoleFormation7Label => GetRoleFormationLabel(TroopRole.Skirmisher, 6);
+        [DataSourceProperty] public string SkirmisherRoleFormation8Label => GetRoleFormationLabel(TroopRole.Skirmisher, 7);
+        [DataSourceProperty] public string FootArcherRoleFormation1Label => GetRoleFormationLabel(TroopRole.FootArcher, 0);
+        [DataSourceProperty] public string FootArcherRoleFormation2Label => GetRoleFormationLabel(TroopRole.FootArcher, 1);
+        [DataSourceProperty] public string FootArcherRoleFormation3Label => GetRoleFormationLabel(TroopRole.FootArcher, 2);
+        [DataSourceProperty] public string FootArcherRoleFormation4Label => GetRoleFormationLabel(TroopRole.FootArcher, 3);
+        [DataSourceProperty] public string FootArcherRoleFormation5Label => GetRoleFormationLabel(TroopRole.FootArcher, 4);
+        [DataSourceProperty] public string FootArcherRoleFormation6Label => GetRoleFormationLabel(TroopRole.FootArcher, 5);
+        [DataSourceProperty] public string FootArcherRoleFormation7Label => GetRoleFormationLabel(TroopRole.FootArcher, 6);
+        [DataSourceProperty] public string FootArcherRoleFormation8Label => GetRoleFormationLabel(TroopRole.FootArcher, 7);
+        [DataSourceProperty] public string CrossbowmanRoleFormation1Label => GetRoleFormationLabel(TroopRole.Crossbowman, 0);
+        [DataSourceProperty] public string CrossbowmanRoleFormation2Label => GetRoleFormationLabel(TroopRole.Crossbowman, 1);
+        [DataSourceProperty] public string CrossbowmanRoleFormation3Label => GetRoleFormationLabel(TroopRole.Crossbowman, 2);
+        [DataSourceProperty] public string CrossbowmanRoleFormation4Label => GetRoleFormationLabel(TroopRole.Crossbowman, 3);
+        [DataSourceProperty] public string CrossbowmanRoleFormation5Label => GetRoleFormationLabel(TroopRole.Crossbowman, 4);
+        [DataSourceProperty] public string CrossbowmanRoleFormation6Label => GetRoleFormationLabel(TroopRole.Crossbowman, 5);
+        [DataSourceProperty] public string CrossbowmanRoleFormation7Label => GetRoleFormationLabel(TroopRole.Crossbowman, 6);
+        [DataSourceProperty] public string CrossbowmanRoleFormation8Label => GetRoleFormationLabel(TroopRole.Crossbowman, 7);
+        [DataSourceProperty] public string MeleeCavalryRoleFormation1Label => GetRoleFormationLabel(TroopRole.MeleeCavalry, 0);
+        [DataSourceProperty] public string MeleeCavalryRoleFormation2Label => GetRoleFormationLabel(TroopRole.MeleeCavalry, 1);
+        [DataSourceProperty] public string MeleeCavalryRoleFormation3Label => GetRoleFormationLabel(TroopRole.MeleeCavalry, 2);
+        [DataSourceProperty] public string MeleeCavalryRoleFormation4Label => GetRoleFormationLabel(TroopRole.MeleeCavalry, 3);
+        [DataSourceProperty] public string MeleeCavalryRoleFormation5Label => GetRoleFormationLabel(TroopRole.MeleeCavalry, 4);
+        [DataSourceProperty] public string MeleeCavalryRoleFormation6Label => GetRoleFormationLabel(TroopRole.MeleeCavalry, 5);
+        [DataSourceProperty] public string MeleeCavalryRoleFormation7Label => GetRoleFormationLabel(TroopRole.MeleeCavalry, 6);
+        [DataSourceProperty] public string MeleeCavalryRoleFormation8Label => GetRoleFormationLabel(TroopRole.MeleeCavalry, 7);
+        [DataSourceProperty] public string HorseArcherRoleFormation1Label => GetRoleFormationLabel(TroopRole.HorseArcher, 0);
+        [DataSourceProperty] public string HorseArcherRoleFormation2Label => GetRoleFormationLabel(TroopRole.HorseArcher, 1);
+        [DataSourceProperty] public string HorseArcherRoleFormation3Label => GetRoleFormationLabel(TroopRole.HorseArcher, 2);
+        [DataSourceProperty] public string HorseArcherRoleFormation4Label => GetRoleFormationLabel(TroopRole.HorseArcher, 3);
+        [DataSourceProperty] public string HorseArcherRoleFormation5Label => GetRoleFormationLabel(TroopRole.HorseArcher, 4);
+        [DataSourceProperty] public string HorseArcherRoleFormation6Label => GetRoleFormationLabel(TroopRole.HorseArcher, 5);
+        [DataSourceProperty] public string HorseArcherRoleFormation7Label => GetRoleFormationLabel(TroopRole.HorseArcher, 6);
+        [DataSourceProperty] public string HorseArcherRoleFormation8Label => GetRoleFormationLabel(TroopRole.HorseArcher, 7);
 
         [DataSourceProperty] public bool IsCustomEditorVisible => IsFormationBadgeVisible;
         [DataSourceProperty] public bool IsFormationEditorVisible => IsFormationBadgeVisible &&
@@ -195,65 +249,94 @@ namespace FormationManager.UI
             Refresh();
         }
 
-        [DataSourceMethod] public void ExecuteCycleLightInfantryRolePlan() => CycleRolePlan(TroopRole.LightInfantry);
-        [DataSourceMethod] public void ExecuteCycleShieldInfantryRolePlan() => CycleRolePlan(TroopRole.ShieldInfantry);
-        [DataSourceMethod] public void ExecuteCycleShockInfantryRolePlan() => CycleRolePlan(TroopRole.ShockInfantry);
-        [DataSourceMethod] public void ExecuteCyclePikeInfantryRolePlan() => CycleRolePlan(TroopRole.PikeInfantry);
-        [DataSourceMethod] public void ExecuteCycleSkirmisherRolePlan() => CycleRolePlan(TroopRole.Skirmisher);
-        [DataSourceMethod] public void ExecuteCycleFootArcherRolePlan() => CycleRolePlan(TroopRole.FootArcher);
-        [DataSourceMethod] public void ExecuteCycleCrossbowmanRolePlan() => CycleRolePlan(TroopRole.Crossbowman);
-        [DataSourceMethod] public void ExecuteCycleMeleeCavalryRolePlan() => CycleRolePlan(TroopRole.MeleeCavalry);
-        [DataSourceMethod] public void ExecuteCycleHorseArcherRolePlan() => CycleRolePlan(TroopRole.HorseArcher);
-        [DataSourceMethod] public void ExecuteCycleSecondaryLightInfantryRolePlan() => CycleSecondaryRolePlan(TroopRole.LightInfantry);
-        [DataSourceMethod] public void ExecuteCycleSecondaryShieldInfantryRolePlan() => CycleSecondaryRolePlan(TroopRole.ShieldInfantry);
-        [DataSourceMethod] public void ExecuteCycleSecondaryShockInfantryRolePlan() => CycleSecondaryRolePlan(TroopRole.ShockInfantry);
-        [DataSourceMethod] public void ExecuteCycleSecondaryPikeInfantryRolePlan() => CycleSecondaryRolePlan(TroopRole.PikeInfantry);
-        [DataSourceMethod] public void ExecuteCycleSecondarySkirmisherRolePlan() => CycleSecondaryRolePlan(TroopRole.Skirmisher);
-        [DataSourceMethod] public void ExecuteCycleSecondaryFootArcherRolePlan() => CycleSecondaryRolePlan(TroopRole.FootArcher);
-        [DataSourceMethod] public void ExecuteCycleSecondaryCrossbowmanRolePlan() => CycleSecondaryRolePlan(TroopRole.Crossbowman);
-        [DataSourceMethod] public void ExecuteCycleSecondaryMeleeCavalryRolePlan() => CycleSecondaryRolePlan(TroopRole.MeleeCavalry);
-        [DataSourceMethod] public void ExecuteCycleSecondaryHorseArcherRolePlan() => CycleSecondaryRolePlan(TroopRole.HorseArcher);
+        [DataSourceMethod] public void ExecuteToggleLightInfantryRoleFormation1() => ToggleRoleFormation(TroopRole.LightInfantry, 0);
+        [DataSourceMethod] public void ExecuteToggleLightInfantryRoleFormation2() => ToggleRoleFormation(TroopRole.LightInfantry, 1);
+        [DataSourceMethod] public void ExecuteToggleLightInfantryRoleFormation3() => ToggleRoleFormation(TroopRole.LightInfantry, 2);
+        [DataSourceMethod] public void ExecuteToggleLightInfantryRoleFormation4() => ToggleRoleFormation(TroopRole.LightInfantry, 3);
+        [DataSourceMethod] public void ExecuteToggleLightInfantryRoleFormation5() => ToggleRoleFormation(TroopRole.LightInfantry, 4);
+        [DataSourceMethod] public void ExecuteToggleLightInfantryRoleFormation6() => ToggleRoleFormation(TroopRole.LightInfantry, 5);
+        [DataSourceMethod] public void ExecuteToggleLightInfantryRoleFormation7() => ToggleRoleFormation(TroopRole.LightInfantry, 6);
+        [DataSourceMethod] public void ExecuteToggleLightInfantryRoleFormation8() => ToggleRoleFormation(TroopRole.LightInfantry, 7);
+        [DataSourceMethod] public void ExecuteToggleShieldInfantryRoleFormation1() => ToggleRoleFormation(TroopRole.ShieldInfantry, 0);
+        [DataSourceMethod] public void ExecuteToggleShieldInfantryRoleFormation2() => ToggleRoleFormation(TroopRole.ShieldInfantry, 1);
+        [DataSourceMethod] public void ExecuteToggleShieldInfantryRoleFormation3() => ToggleRoleFormation(TroopRole.ShieldInfantry, 2);
+        [DataSourceMethod] public void ExecuteToggleShieldInfantryRoleFormation4() => ToggleRoleFormation(TroopRole.ShieldInfantry, 3);
+        [DataSourceMethod] public void ExecuteToggleShieldInfantryRoleFormation5() => ToggleRoleFormation(TroopRole.ShieldInfantry, 4);
+        [DataSourceMethod] public void ExecuteToggleShieldInfantryRoleFormation6() => ToggleRoleFormation(TroopRole.ShieldInfantry, 5);
+        [DataSourceMethod] public void ExecuteToggleShieldInfantryRoleFormation7() => ToggleRoleFormation(TroopRole.ShieldInfantry, 6);
+        [DataSourceMethod] public void ExecuteToggleShieldInfantryRoleFormation8() => ToggleRoleFormation(TroopRole.ShieldInfantry, 7);
+        [DataSourceMethod] public void ExecuteToggleShockInfantryRoleFormation1() => ToggleRoleFormation(TroopRole.ShockInfantry, 0);
+        [DataSourceMethod] public void ExecuteToggleShockInfantryRoleFormation2() => ToggleRoleFormation(TroopRole.ShockInfantry, 1);
+        [DataSourceMethod] public void ExecuteToggleShockInfantryRoleFormation3() => ToggleRoleFormation(TroopRole.ShockInfantry, 2);
+        [DataSourceMethod] public void ExecuteToggleShockInfantryRoleFormation4() => ToggleRoleFormation(TroopRole.ShockInfantry, 3);
+        [DataSourceMethod] public void ExecuteToggleShockInfantryRoleFormation5() => ToggleRoleFormation(TroopRole.ShockInfantry, 4);
+        [DataSourceMethod] public void ExecuteToggleShockInfantryRoleFormation6() => ToggleRoleFormation(TroopRole.ShockInfantry, 5);
+        [DataSourceMethod] public void ExecuteToggleShockInfantryRoleFormation7() => ToggleRoleFormation(TroopRole.ShockInfantry, 6);
+        [DataSourceMethod] public void ExecuteToggleShockInfantryRoleFormation8() => ToggleRoleFormation(TroopRole.ShockInfantry, 7);
+        [DataSourceMethod] public void ExecuteTogglePikeInfantryRoleFormation1() => ToggleRoleFormation(TroopRole.PikeInfantry, 0);
+        [DataSourceMethod] public void ExecuteTogglePikeInfantryRoleFormation2() => ToggleRoleFormation(TroopRole.PikeInfantry, 1);
+        [DataSourceMethod] public void ExecuteTogglePikeInfantryRoleFormation3() => ToggleRoleFormation(TroopRole.PikeInfantry, 2);
+        [DataSourceMethod] public void ExecuteTogglePikeInfantryRoleFormation4() => ToggleRoleFormation(TroopRole.PikeInfantry, 3);
+        [DataSourceMethod] public void ExecuteTogglePikeInfantryRoleFormation5() => ToggleRoleFormation(TroopRole.PikeInfantry, 4);
+        [DataSourceMethod] public void ExecuteTogglePikeInfantryRoleFormation6() => ToggleRoleFormation(TroopRole.PikeInfantry, 5);
+        [DataSourceMethod] public void ExecuteTogglePikeInfantryRoleFormation7() => ToggleRoleFormation(TroopRole.PikeInfantry, 6);
+        [DataSourceMethod] public void ExecuteTogglePikeInfantryRoleFormation8() => ToggleRoleFormation(TroopRole.PikeInfantry, 7);
+        [DataSourceMethod] public void ExecuteToggleSkirmisherRoleFormation1() => ToggleRoleFormation(TroopRole.Skirmisher, 0);
+        [DataSourceMethod] public void ExecuteToggleSkirmisherRoleFormation2() => ToggleRoleFormation(TroopRole.Skirmisher, 1);
+        [DataSourceMethod] public void ExecuteToggleSkirmisherRoleFormation3() => ToggleRoleFormation(TroopRole.Skirmisher, 2);
+        [DataSourceMethod] public void ExecuteToggleSkirmisherRoleFormation4() => ToggleRoleFormation(TroopRole.Skirmisher, 3);
+        [DataSourceMethod] public void ExecuteToggleSkirmisherRoleFormation5() => ToggleRoleFormation(TroopRole.Skirmisher, 4);
+        [DataSourceMethod] public void ExecuteToggleSkirmisherRoleFormation6() => ToggleRoleFormation(TroopRole.Skirmisher, 5);
+        [DataSourceMethod] public void ExecuteToggleSkirmisherRoleFormation7() => ToggleRoleFormation(TroopRole.Skirmisher, 6);
+        [DataSourceMethod] public void ExecuteToggleSkirmisherRoleFormation8() => ToggleRoleFormation(TroopRole.Skirmisher, 7);
+        [DataSourceMethod] public void ExecuteToggleFootArcherRoleFormation1() => ToggleRoleFormation(TroopRole.FootArcher, 0);
+        [DataSourceMethod] public void ExecuteToggleFootArcherRoleFormation2() => ToggleRoleFormation(TroopRole.FootArcher, 1);
+        [DataSourceMethod] public void ExecuteToggleFootArcherRoleFormation3() => ToggleRoleFormation(TroopRole.FootArcher, 2);
+        [DataSourceMethod] public void ExecuteToggleFootArcherRoleFormation4() => ToggleRoleFormation(TroopRole.FootArcher, 3);
+        [DataSourceMethod] public void ExecuteToggleFootArcherRoleFormation5() => ToggleRoleFormation(TroopRole.FootArcher, 4);
+        [DataSourceMethod] public void ExecuteToggleFootArcherRoleFormation6() => ToggleRoleFormation(TroopRole.FootArcher, 5);
+        [DataSourceMethod] public void ExecuteToggleFootArcherRoleFormation7() => ToggleRoleFormation(TroopRole.FootArcher, 6);
+        [DataSourceMethod] public void ExecuteToggleFootArcherRoleFormation8() => ToggleRoleFormation(TroopRole.FootArcher, 7);
+        [DataSourceMethod] public void ExecuteToggleCrossbowmanRoleFormation1() => ToggleRoleFormation(TroopRole.Crossbowman, 0);
+        [DataSourceMethod] public void ExecuteToggleCrossbowmanRoleFormation2() => ToggleRoleFormation(TroopRole.Crossbowman, 1);
+        [DataSourceMethod] public void ExecuteToggleCrossbowmanRoleFormation3() => ToggleRoleFormation(TroopRole.Crossbowman, 2);
+        [DataSourceMethod] public void ExecuteToggleCrossbowmanRoleFormation4() => ToggleRoleFormation(TroopRole.Crossbowman, 3);
+        [DataSourceMethod] public void ExecuteToggleCrossbowmanRoleFormation5() => ToggleRoleFormation(TroopRole.Crossbowman, 4);
+        [DataSourceMethod] public void ExecuteToggleCrossbowmanRoleFormation6() => ToggleRoleFormation(TroopRole.Crossbowman, 5);
+        [DataSourceMethod] public void ExecuteToggleCrossbowmanRoleFormation7() => ToggleRoleFormation(TroopRole.Crossbowman, 6);
+        [DataSourceMethod] public void ExecuteToggleCrossbowmanRoleFormation8() => ToggleRoleFormation(TroopRole.Crossbowman, 7);
+        [DataSourceMethod] public void ExecuteToggleMeleeCavalryRoleFormation1() => ToggleRoleFormation(TroopRole.MeleeCavalry, 0);
+        [DataSourceMethod] public void ExecuteToggleMeleeCavalryRoleFormation2() => ToggleRoleFormation(TroopRole.MeleeCavalry, 1);
+        [DataSourceMethod] public void ExecuteToggleMeleeCavalryRoleFormation3() => ToggleRoleFormation(TroopRole.MeleeCavalry, 2);
+        [DataSourceMethod] public void ExecuteToggleMeleeCavalryRoleFormation4() => ToggleRoleFormation(TroopRole.MeleeCavalry, 3);
+        [DataSourceMethod] public void ExecuteToggleMeleeCavalryRoleFormation5() => ToggleRoleFormation(TroopRole.MeleeCavalry, 4);
+        [DataSourceMethod] public void ExecuteToggleMeleeCavalryRoleFormation6() => ToggleRoleFormation(TroopRole.MeleeCavalry, 5);
+        [DataSourceMethod] public void ExecuteToggleMeleeCavalryRoleFormation7() => ToggleRoleFormation(TroopRole.MeleeCavalry, 6);
+        [DataSourceMethod] public void ExecuteToggleMeleeCavalryRoleFormation8() => ToggleRoleFormation(TroopRole.MeleeCavalry, 7);
+        [DataSourceMethod] public void ExecuteToggleHorseArcherRoleFormation1() => ToggleRoleFormation(TroopRole.HorseArcher, 0);
+        [DataSourceMethod] public void ExecuteToggleHorseArcherRoleFormation2() => ToggleRoleFormation(TroopRole.HorseArcher, 1);
+        [DataSourceMethod] public void ExecuteToggleHorseArcherRoleFormation3() => ToggleRoleFormation(TroopRole.HorseArcher, 2);
+        [DataSourceMethod] public void ExecuteToggleHorseArcherRoleFormation4() => ToggleRoleFormation(TroopRole.HorseArcher, 3);
+        [DataSourceMethod] public void ExecuteToggleHorseArcherRoleFormation5() => ToggleRoleFormation(TroopRole.HorseArcher, 4);
+        [DataSourceMethod] public void ExecuteToggleHorseArcherRoleFormation6() => ToggleRoleFormation(TroopRole.HorseArcher, 5);
+        [DataSourceMethod] public void ExecuteToggleHorseArcherRoleFormation7() => ToggleRoleFormation(TroopRole.HorseArcher, 6);
+        [DataSourceMethod] public void ExecuteToggleHorseArcherRoleFormation8() => ToggleRoleFormation(TroopRole.HorseArcher, 7);
 
         private bool IsPlayerHeroRow => ViewModel?.Character is CharacterObject character &&
                                         character.HeroObject != null && ReferenceEquals(character.HeroObject, Hero.MainHero);
 
-        private static string GetRolePlanLabel(TroopRole role)
-        {
-            int[] assignments = FormationAssignmentStore.GetRoleAssignments(role);
-            return assignments.Length > 0 ? Labels[assignments[0] + 1] : "+";
-        }
+        private static string GetRoleFormationLabel(TroopRole role, int formationIndex)
+            => FormationAssignmentStore.GetRoleAssignments(role).Contains(formationIndex)
+                ? Labels[formationIndex + 1]
+                : "+";
 
-        private static string GetSecondaryRolePlanLabel(TroopRole role)
+        private void ToggleRoleFormation(TroopRole role, int formationIndex)
         {
-            int[] assignments = FormationAssignmentStore.GetRoleAssignments(role);
-            return assignments.Length > 1 ? Labels[assignments[1] + 1] : "+";
-        }
+            var assignments = FormationAssignmentStore.GetRoleAssignments(role).ToList();
+            if (!assignments.Remove(formationIndex))
+                assignments.Add(formationIndex);
 
-        private void CycleRolePlan(TroopRole role)
-        {
-            int[] assignments = FormationAssignmentStore.GetRoleAssignments(role);
-            int next = assignments.Length > 0 ? assignments[0] + 1 : 0;
-            if (next > 7) FormationAssignmentStore.ClearRoleAssignment(role);
-            else FormationAssignmentStore.SetRoleAssignment(role, next);
-            FormationAssignmentStore.Save();
-            RefreshRolePlanBindings();
-        }
-
-        private void CycleSecondaryRolePlan(TroopRole role)
-        {
-            int[] assignments = FormationAssignmentStore.GetRoleAssignments(role);
-            if (assignments.Length == 0)
-            {
-                FormationAssignmentStore.SetRoleAssignment(role, 0);
-            }
-            else
-            {
-                int primary = assignments[0];
-                int next = assignments.Length > 1 ? assignments[1] + 1 : 0;
-                while (next == primary) next++;
-                if (next > 7) FormationAssignmentStore.ClearSecondaryRoleAssignment(role);
-                else FormationAssignmentStore.SetSecondaryRoleAssignment(role, next);
-            }
+            FormationAssignmentStore.SetRoleAssignments(role, assignments);
             FormationAssignmentStore.Save();
             RefreshRolePlanBindings();
         }
@@ -263,8 +346,8 @@ namespace FormationManager.UI
             OnPropertyChanged(nameof(IsRolePlanBadgeVisible));
             foreach (string role in new[] { "LightInfantry", "ShieldInfantry", "ShockInfantry", "PikeInfantry", "Skirmisher", "FootArcher", "Crossbowman", "MeleeCavalry", "HorseArcher" })
             {
-                OnPropertyChanged($"{role}RolePlanLabel");
-                OnPropertyChanged($"{role}SecondaryRolePlanLabel");
+                for (int formation = 1; formation <= 8; formation++)
+                    OnPropertyChanged($"{role}RoleFormation{formation}Label");
             }
         }
 
