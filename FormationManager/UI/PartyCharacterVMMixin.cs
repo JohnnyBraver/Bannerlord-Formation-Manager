@@ -77,6 +77,96 @@ namespace FormationManager.UI
 
         [DataSourceProperty] public bool IsRolePlanBadgeVisible => IsPlayerHeroRow && FormationAssignmentStore.HasAnyRoleAssignments;
         [DataSourceProperty] public bool IsRolePlanEditorVisible => IsPlayerHeroRow && (ViewModel?.IsSelected ?? false);
+        [DataSourceProperty] public string LightInfantryRoleSplitLabel => GetRoleSplitLabel(TroopRole.LightInfantry);
+        [DataSourceProperty] public bool IsLightInfantryRoleGridVisible => IsRoleGridVisible(TroopRole.LightInfantry);
+        [DataSourceProperty] public bool IsLightInfantryRoleFormation1Selected => IsRoleFormationMarked(TroopRole.LightInfantry, 0);
+        [DataSourceProperty] public bool IsLightInfantryRoleFormation2Selected => IsRoleFormationMarked(TroopRole.LightInfantry, 1);
+        [DataSourceProperty] public bool IsLightInfantryRoleFormation3Selected => IsRoleFormationMarked(TroopRole.LightInfantry, 2);
+        [DataSourceProperty] public bool IsLightInfantryRoleFormation4Selected => IsRoleFormationMarked(TroopRole.LightInfantry, 3);
+        [DataSourceProperty] public bool IsLightInfantryRoleFormation5Selected => IsRoleFormationMarked(TroopRole.LightInfantry, 4);
+        [DataSourceProperty] public bool IsLightInfantryRoleFormation6Selected => IsRoleFormationMarked(TroopRole.LightInfantry, 5);
+        [DataSourceProperty] public bool IsLightInfantryRoleFormation7Selected => IsRoleFormationMarked(TroopRole.LightInfantry, 6);
+        [DataSourceProperty] public bool IsLightInfantryRoleFormation8Selected => IsRoleFormationMarked(TroopRole.LightInfantry, 7);
+        [DataSourceProperty] public string ShieldInfantryRoleSplitLabel => GetRoleSplitLabel(TroopRole.ShieldInfantry);
+        [DataSourceProperty] public bool IsShieldInfantryRoleGridVisible => IsRoleGridVisible(TroopRole.ShieldInfantry);
+        [DataSourceProperty] public bool IsShieldInfantryRoleFormation1Selected => IsRoleFormationMarked(TroopRole.ShieldInfantry, 0);
+        [DataSourceProperty] public bool IsShieldInfantryRoleFormation2Selected => IsRoleFormationMarked(TroopRole.ShieldInfantry, 1);
+        [DataSourceProperty] public bool IsShieldInfantryRoleFormation3Selected => IsRoleFormationMarked(TroopRole.ShieldInfantry, 2);
+        [DataSourceProperty] public bool IsShieldInfantryRoleFormation4Selected => IsRoleFormationMarked(TroopRole.ShieldInfantry, 3);
+        [DataSourceProperty] public bool IsShieldInfantryRoleFormation5Selected => IsRoleFormationMarked(TroopRole.ShieldInfantry, 4);
+        [DataSourceProperty] public bool IsShieldInfantryRoleFormation6Selected => IsRoleFormationMarked(TroopRole.ShieldInfantry, 5);
+        [DataSourceProperty] public bool IsShieldInfantryRoleFormation7Selected => IsRoleFormationMarked(TroopRole.ShieldInfantry, 6);
+        [DataSourceProperty] public bool IsShieldInfantryRoleFormation8Selected => IsRoleFormationMarked(TroopRole.ShieldInfantry, 7);
+        [DataSourceProperty] public string ShockInfantryRoleSplitLabel => GetRoleSplitLabel(TroopRole.ShockInfantry);
+        [DataSourceProperty] public bool IsShockInfantryRoleGridVisible => IsRoleGridVisible(TroopRole.ShockInfantry);
+        [DataSourceProperty] public bool IsShockInfantryRoleFormation1Selected => IsRoleFormationMarked(TroopRole.ShockInfantry, 0);
+        [DataSourceProperty] public bool IsShockInfantryRoleFormation2Selected => IsRoleFormationMarked(TroopRole.ShockInfantry, 1);
+        [DataSourceProperty] public bool IsShockInfantryRoleFormation3Selected => IsRoleFormationMarked(TroopRole.ShockInfantry, 2);
+        [DataSourceProperty] public bool IsShockInfantryRoleFormation4Selected => IsRoleFormationMarked(TroopRole.ShockInfantry, 3);
+        [DataSourceProperty] public bool IsShockInfantryRoleFormation5Selected => IsRoleFormationMarked(TroopRole.ShockInfantry, 4);
+        [DataSourceProperty] public bool IsShockInfantryRoleFormation6Selected => IsRoleFormationMarked(TroopRole.ShockInfantry, 5);
+        [DataSourceProperty] public bool IsShockInfantryRoleFormation7Selected => IsRoleFormationMarked(TroopRole.ShockInfantry, 6);
+        [DataSourceProperty] public bool IsShockInfantryRoleFormation8Selected => IsRoleFormationMarked(TroopRole.ShockInfantry, 7);
+        [DataSourceProperty] public string PikeInfantryRoleSplitLabel => GetRoleSplitLabel(TroopRole.PikeInfantry);
+        [DataSourceProperty] public bool IsPikeInfantryRoleGridVisible => IsRoleGridVisible(TroopRole.PikeInfantry);
+        [DataSourceProperty] public bool IsPikeInfantryRoleFormation1Selected => IsRoleFormationMarked(TroopRole.PikeInfantry, 0);
+        [DataSourceProperty] public bool IsPikeInfantryRoleFormation2Selected => IsRoleFormationMarked(TroopRole.PikeInfantry, 1);
+        [DataSourceProperty] public bool IsPikeInfantryRoleFormation3Selected => IsRoleFormationMarked(TroopRole.PikeInfantry, 2);
+        [DataSourceProperty] public bool IsPikeInfantryRoleFormation4Selected => IsRoleFormationMarked(TroopRole.PikeInfantry, 3);
+        [DataSourceProperty] public bool IsPikeInfantryRoleFormation5Selected => IsRoleFormationMarked(TroopRole.PikeInfantry, 4);
+        [DataSourceProperty] public bool IsPikeInfantryRoleFormation6Selected => IsRoleFormationMarked(TroopRole.PikeInfantry, 5);
+        [DataSourceProperty] public bool IsPikeInfantryRoleFormation7Selected => IsRoleFormationMarked(TroopRole.PikeInfantry, 6);
+        [DataSourceProperty] public bool IsPikeInfantryRoleFormation8Selected => IsRoleFormationMarked(TroopRole.PikeInfantry, 7);
+        [DataSourceProperty] public string SkirmisherRoleSplitLabel => GetRoleSplitLabel(TroopRole.Skirmisher);
+        [DataSourceProperty] public bool IsSkirmisherRoleGridVisible => IsRoleGridVisible(TroopRole.Skirmisher);
+        [DataSourceProperty] public bool IsSkirmisherRoleFormation1Selected => IsRoleFormationMarked(TroopRole.Skirmisher, 0);
+        [DataSourceProperty] public bool IsSkirmisherRoleFormation2Selected => IsRoleFormationMarked(TroopRole.Skirmisher, 1);
+        [DataSourceProperty] public bool IsSkirmisherRoleFormation3Selected => IsRoleFormationMarked(TroopRole.Skirmisher, 2);
+        [DataSourceProperty] public bool IsSkirmisherRoleFormation4Selected => IsRoleFormationMarked(TroopRole.Skirmisher, 3);
+        [DataSourceProperty] public bool IsSkirmisherRoleFormation5Selected => IsRoleFormationMarked(TroopRole.Skirmisher, 4);
+        [DataSourceProperty] public bool IsSkirmisherRoleFormation6Selected => IsRoleFormationMarked(TroopRole.Skirmisher, 5);
+        [DataSourceProperty] public bool IsSkirmisherRoleFormation7Selected => IsRoleFormationMarked(TroopRole.Skirmisher, 6);
+        [DataSourceProperty] public bool IsSkirmisherRoleFormation8Selected => IsRoleFormationMarked(TroopRole.Skirmisher, 7);
+        [DataSourceProperty] public string FootArcherRoleSplitLabel => GetRoleSplitLabel(TroopRole.FootArcher);
+        [DataSourceProperty] public bool IsFootArcherRoleGridVisible => IsRoleGridVisible(TroopRole.FootArcher);
+        [DataSourceProperty] public bool IsFootArcherRoleFormation1Selected => IsRoleFormationMarked(TroopRole.FootArcher, 0);
+        [DataSourceProperty] public bool IsFootArcherRoleFormation2Selected => IsRoleFormationMarked(TroopRole.FootArcher, 1);
+        [DataSourceProperty] public bool IsFootArcherRoleFormation3Selected => IsRoleFormationMarked(TroopRole.FootArcher, 2);
+        [DataSourceProperty] public bool IsFootArcherRoleFormation4Selected => IsRoleFormationMarked(TroopRole.FootArcher, 3);
+        [DataSourceProperty] public bool IsFootArcherRoleFormation5Selected => IsRoleFormationMarked(TroopRole.FootArcher, 4);
+        [DataSourceProperty] public bool IsFootArcherRoleFormation6Selected => IsRoleFormationMarked(TroopRole.FootArcher, 5);
+        [DataSourceProperty] public bool IsFootArcherRoleFormation7Selected => IsRoleFormationMarked(TroopRole.FootArcher, 6);
+        [DataSourceProperty] public bool IsFootArcherRoleFormation8Selected => IsRoleFormationMarked(TroopRole.FootArcher, 7);
+        [DataSourceProperty] public string CrossbowmanRoleSplitLabel => GetRoleSplitLabel(TroopRole.Crossbowman);
+        [DataSourceProperty] public bool IsCrossbowmanRoleGridVisible => IsRoleGridVisible(TroopRole.Crossbowman);
+        [DataSourceProperty] public bool IsCrossbowmanRoleFormation1Selected => IsRoleFormationMarked(TroopRole.Crossbowman, 0);
+        [DataSourceProperty] public bool IsCrossbowmanRoleFormation2Selected => IsRoleFormationMarked(TroopRole.Crossbowman, 1);
+        [DataSourceProperty] public bool IsCrossbowmanRoleFormation3Selected => IsRoleFormationMarked(TroopRole.Crossbowman, 2);
+        [DataSourceProperty] public bool IsCrossbowmanRoleFormation4Selected => IsRoleFormationMarked(TroopRole.Crossbowman, 3);
+        [DataSourceProperty] public bool IsCrossbowmanRoleFormation5Selected => IsRoleFormationMarked(TroopRole.Crossbowman, 4);
+        [DataSourceProperty] public bool IsCrossbowmanRoleFormation6Selected => IsRoleFormationMarked(TroopRole.Crossbowman, 5);
+        [DataSourceProperty] public bool IsCrossbowmanRoleFormation7Selected => IsRoleFormationMarked(TroopRole.Crossbowman, 6);
+        [DataSourceProperty] public bool IsCrossbowmanRoleFormation8Selected => IsRoleFormationMarked(TroopRole.Crossbowman, 7);
+        [DataSourceProperty] public string MeleeCavalryRoleSplitLabel => GetRoleSplitLabel(TroopRole.MeleeCavalry);
+        [DataSourceProperty] public bool IsMeleeCavalryRoleGridVisible => IsRoleGridVisible(TroopRole.MeleeCavalry);
+        [DataSourceProperty] public bool IsMeleeCavalryRoleFormation1Selected => IsRoleFormationMarked(TroopRole.MeleeCavalry, 0);
+        [DataSourceProperty] public bool IsMeleeCavalryRoleFormation2Selected => IsRoleFormationMarked(TroopRole.MeleeCavalry, 1);
+        [DataSourceProperty] public bool IsMeleeCavalryRoleFormation3Selected => IsRoleFormationMarked(TroopRole.MeleeCavalry, 2);
+        [DataSourceProperty] public bool IsMeleeCavalryRoleFormation4Selected => IsRoleFormationMarked(TroopRole.MeleeCavalry, 3);
+        [DataSourceProperty] public bool IsMeleeCavalryRoleFormation5Selected => IsRoleFormationMarked(TroopRole.MeleeCavalry, 4);
+        [DataSourceProperty] public bool IsMeleeCavalryRoleFormation6Selected => IsRoleFormationMarked(TroopRole.MeleeCavalry, 5);
+        [DataSourceProperty] public bool IsMeleeCavalryRoleFormation7Selected => IsRoleFormationMarked(TroopRole.MeleeCavalry, 6);
+        [DataSourceProperty] public bool IsMeleeCavalryRoleFormation8Selected => IsRoleFormationMarked(TroopRole.MeleeCavalry, 7);
+        [DataSourceProperty] public string HorseArcherRoleSplitLabel => GetRoleSplitLabel(TroopRole.HorseArcher);
+        [DataSourceProperty] public bool IsHorseArcherRoleGridVisible => IsRoleGridVisible(TroopRole.HorseArcher);
+        [DataSourceProperty] public bool IsHorseArcherRoleFormation1Selected => IsRoleFormationMarked(TroopRole.HorseArcher, 0);
+        [DataSourceProperty] public bool IsHorseArcherRoleFormation2Selected => IsRoleFormationMarked(TroopRole.HorseArcher, 1);
+        [DataSourceProperty] public bool IsHorseArcherRoleFormation3Selected => IsRoleFormationMarked(TroopRole.HorseArcher, 2);
+        [DataSourceProperty] public bool IsHorseArcherRoleFormation4Selected => IsRoleFormationMarked(TroopRole.HorseArcher, 3);
+        [DataSourceProperty] public bool IsHorseArcherRoleFormation5Selected => IsRoleFormationMarked(TroopRole.HorseArcher, 4);
+        [DataSourceProperty] public bool IsHorseArcherRoleFormation6Selected => IsRoleFormationMarked(TroopRole.HorseArcher, 5);
+        [DataSourceProperty] public bool IsHorseArcherRoleFormation7Selected => IsRoleFormationMarked(TroopRole.HorseArcher, 6);
+        [DataSourceProperty] public bool IsHorseArcherRoleFormation8Selected => IsRoleFormationMarked(TroopRole.HorseArcher, 7);
         [DataSourceProperty] public string LightInfantryRoleFormation1Label => GetRoleFormationLabel(TroopRole.LightInfantry, 0);
         [DataSourceProperty] public string LightInfantryRoleFormation2Label => GetRoleFormationLabel(TroopRole.LightInfantry, 1);
         [DataSourceProperty] public string LightInfantryRoleFormation3Label => GetRoleFormationLabel(TroopRole.LightInfantry, 2);
@@ -249,6 +339,15 @@ namespace FormationManager.UI
             Refresh();
         }
 
+        [DataSourceMethod] public void ExecuteCycleLightInfantryRoleSplit() => CycleRoleSplit(TroopRole.LightInfantry);
+        [DataSourceMethod] public void ExecuteCycleShieldInfantryRoleSplit() => CycleRoleSplit(TroopRole.ShieldInfantry);
+        [DataSourceMethod] public void ExecuteCycleShockInfantryRoleSplit() => CycleRoleSplit(TroopRole.ShockInfantry);
+        [DataSourceMethod] public void ExecuteCyclePikeInfantryRoleSplit() => CycleRoleSplit(TroopRole.PikeInfantry);
+        [DataSourceMethod] public void ExecuteCycleSkirmisherRoleSplit() => CycleRoleSplit(TroopRole.Skirmisher);
+        [DataSourceMethod] public void ExecuteCycleFootArcherRoleSplit() => CycleRoleSplit(TroopRole.FootArcher);
+        [DataSourceMethod] public void ExecuteCycleCrossbowmanRoleSplit() => CycleRoleSplit(TroopRole.Crossbowman);
+        [DataSourceMethod] public void ExecuteCycleMeleeCavalryRoleSplit() => CycleRoleSplit(TroopRole.MeleeCavalry);
+        [DataSourceMethod] public void ExecuteCycleHorseArcherRoleSplit() => CycleRoleSplit(TroopRole.HorseArcher);
         [DataSourceMethod] public void ExecuteToggleLightInfantryRoleFormation1() => ToggleRoleFormation(TroopRole.LightInfantry, 0);
         [DataSourceMethod] public void ExecuteToggleLightInfantryRoleFormation2() => ToggleRoleFormation(TroopRole.LightInfantry, 1);
         [DataSourceMethod] public void ExecuteToggleLightInfantryRoleFormation3() => ToggleRoleFormation(TroopRole.LightInfantry, 2);
@@ -326,9 +425,56 @@ namespace FormationManager.UI
                                         character.HeroObject != null && ReferenceEquals(character.HeroObject, Hero.MainHero);
 
         private static string GetRoleFormationLabel(TroopRole role, int formationIndex)
-            => FormationAssignmentStore.GetRoleAssignments(role).Contains(formationIndex)
-                ? Labels[formationIndex + 1]
-                : "+";
+            => IsRoleFormationMarked(role, formationIndex) ? "✓" : string.Empty;
+
+        private static bool IsRoleFormationMarked(TroopRole role, int formationIndex)
+        {
+            int[] assignments = FormationAssignmentStore.GetRoleAssignments(role);
+            if (assignments.Length == 0 || assignments.Length == 8)
+                return false;
+
+            bool isExcludedList = assignments.Length >= 5;
+            return isExcludedList
+                ? !assignments.Contains(formationIndex)
+                : assignments.Contains(formationIndex);
+        }
+
+        private static bool IsRoleGridVisible(TroopRole role)
+        {
+            int assignmentCount = FormationAssignmentStore.GetRoleAssignments(role).Length;
+            return assignmentCount != 8;
+        }
+
+        private static string GetRoleSplitLabel(TroopRole role)
+        {
+            int assignmentCount = FormationAssignmentStore.GetRoleAssignments(role).Length;
+            return assignmentCount == 0 ? "Default" : assignmentCount == 8 ? "All" : $"Split {assignmentCount}";
+        }
+
+        private void CycleRoleSplit(TroopRole role)
+        {
+            int[] current = FormationAssignmentStore.GetRoleAssignments(role);
+            int nextCount = current.Length + 1;
+            if (nextCount > 8)
+            {
+                FormationAssignmentStore.ClearRoleAssignment(role);
+            }
+            else
+            {
+                var assignments = current.ToList();
+                foreach (int formationIndex in Enumerable.Range(0, 8))
+                {
+                    if (assignments.Count >= nextCount)
+                        break;
+                    if (!assignments.Contains(formationIndex))
+                        assignments.Add(formationIndex);
+                }
+                FormationAssignmentStore.SetRoleAssignments(role, assignments);
+            }
+
+            FormationAssignmentStore.Save();
+            RefreshRolePlanBindings();
+        }
 
         private void ToggleRoleFormation(TroopRole role, int formationIndex)
         {
@@ -346,8 +492,13 @@ namespace FormationManager.UI
             OnPropertyChanged(nameof(IsRolePlanBadgeVisible));
             foreach (string role in new[] { "LightInfantry", "ShieldInfantry", "ShockInfantry", "PikeInfantry", "Skirmisher", "FootArcher", "Crossbowman", "MeleeCavalry", "HorseArcher" })
             {
+                OnPropertyChanged($"{role}RoleSplitLabel");
+                OnPropertyChanged($"Is{role}RoleGridVisible");
                 for (int formation = 1; formation <= 8; formation++)
+                {
                     OnPropertyChanged($"{role}RoleFormation{formation}Label");
+                    OnPropertyChanged($"Is{role}RoleFormation{formation}Selected");
+                }
             }
         }
 
