@@ -1,6 +1,7 @@
 using System;
 using System.Collections.Generic;
 using System.ComponentModel;
+using System.Diagnostics;
 using System.Linq;
 using System.Runtime.CompilerServices;
 using Bannerlord.UIExtenderEx.Attributes;
@@ -23,19 +24,33 @@ namespace FormationManager.UI
     internal sealed class PartyCharacterVMMixin : BaseViewModelMixin<PartyCharacterVM>
     {
         private static readonly string[] Labels = { "—", "I", "II", "III", "IV", "V", "VI", "VII", "VIII" };
+        private static readonly TroopRole[] RolePlanRoles =
+        {
+            TroopRole.LightInfantry, TroopRole.ShieldInfantry, TroopRole.ShockInfantry,
+            TroopRole.PikeInfantry, TroopRole.Skirmisher, TroopRole.FootArcher,
+            TroopRole.Crossbowman, TroopRole.MeleeCavalry, TroopRole.HorseArcher
+        };
         private static readonly ConditionalWeakTable<PartyCharacterVM, PartyCharacterVMMixin> Instances = new();
         private static readonly List<WeakReference<PartyCharacterVMMixin>> ActiveMixins = new();
+        private static WeakReference<PartyCharacterVMMixin>? LastSelectedMixin;
+        // Enabled for the second half of the party-screen performance A/B test.
+        // Selection timing remains logged in NotifySelectionChanged.
+        private static readonly bool RolePlanEditorEnabled = true;
         private static bool _autosaveHintShown;
         private readonly string[] _targetTexts = new string[8];
         private readonly string[] _assignedTexts = new string[8];
         private readonly string[] _weightTexts = new string[8];
         private readonly bool[] _editorFormationActive = new bool[8];
         private readonly AdvancedFormationPlanDraft _draft = new();
+        private readonly Dictionary<TroopRole, int[]> _rolePlanDraft = new();
+        private readonly Dictionary<TroopRole, int> _roleSplitSizeDraft = new();
+        private bool _hasRolePlanDraftChanges;
         private string _formationLabel = "—";
         private string _secondaryFormationLabel = "+";
         private bool _isFormationBadgeVisible;
         private bool _isSecondaryFormationBadgeVisible;
         private int _selectedCustomFormationIndex = -1;
+        private bool _lastKnownSelected;
 
         public PartyCharacterVMMixin(PartyCharacterVM vm) : base(vm)
         {
@@ -44,6 +59,7 @@ namespace FormationManager.UI
             ActiveMixins.RemoveAll(reference => !reference.TryGetTarget(out var existing) || ReferenceEquals(existing, this));
             ActiveMixins.Add(new WeakReference<PartyCharacterVMMixin>(this));
             vm.PropertyChanged += OnViewModelPropertyChanged;
+            _lastKnownSelected = vm.IsSelected;
             Refresh();
         }
 
@@ -75,8 +91,20 @@ namespace FormationManager.UI
             set { if (_isSecondaryFormationBadgeVisible != value) { _isSecondaryFormationBadgeVisible = value; OnPropertyChanged(nameof(IsSecondaryFormationBadgeVisible)); } }
         }
 
-        [DataSourceProperty] public bool IsRolePlanBadgeVisible => IsPlayerHeroRow && FormationAssignmentStore.HasAnyRoleAssignments;
-        [DataSourceProperty] public bool IsRolePlanEditorVisible => IsPlayerHeroRow && (ViewModel?.IsSelected ?? false);
+        [DataSourceProperty] public bool IsRolePlanBadgeVisible => RolePlanEditorEnabled && IsPlayerHeroRow && FormationAssignmentStore.HasAnyRoleAssignments;
+        [DataSourceProperty] public bool IsRolePlanEditorVisible => RolePlanEditorEnabled && IsPlayerHeroRow && (ViewModel?.IsSelected ?? false);
+        [DataSourceProperty] public bool HasUnsavedRolePlanChanges => _hasRolePlanDraftChanges;
+        [DataSourceProperty] public bool HasRolePlan => FormationAssignmentStore.HasAnyRoleAssignments;
+        [DataSourceProperty] public bool CanRestoreRolePlan => FormationAssignmentStore.CanRestoreRoleAssignments;
+        [DataSourceProperty] public string LightInfantryRoleNameColor => GetRoleNameColor(TroopRole.LightInfantry);
+        [DataSourceProperty] public string ShieldInfantryRoleNameColor => GetRoleNameColor(TroopRole.ShieldInfantry);
+        [DataSourceProperty] public string ShockInfantryRoleNameColor => GetRoleNameColor(TroopRole.ShockInfantry);
+        [DataSourceProperty] public string PikeInfantryRoleNameColor => GetRoleNameColor(TroopRole.PikeInfantry);
+        [DataSourceProperty] public string SkirmisherRoleNameColor => GetRoleNameColor(TroopRole.Skirmisher);
+        [DataSourceProperty] public string FootArcherRoleNameColor => GetRoleNameColor(TroopRole.FootArcher);
+        [DataSourceProperty] public string CrossbowmanRoleNameColor => GetRoleNameColor(TroopRole.Crossbowman);
+        [DataSourceProperty] public string MeleeCavalryRoleNameColor => GetRoleNameColor(TroopRole.MeleeCavalry);
+        [DataSourceProperty] public string HorseArcherRoleNameColor => GetRoleNameColor(TroopRole.HorseArcher);
         [DataSourceProperty] public string LightInfantryRoleSplitLabel => GetRoleSplitLabel(TroopRole.LightInfantry);
         [DataSourceProperty] public bool IsLightInfantryRoleGridVisible => IsRoleGridVisible(TroopRole.LightInfantry);
         [DataSourceProperty] public bool IsLightInfantryRoleFormation1Selected => IsRoleFormationMarked(TroopRole.LightInfantry, 0);
@@ -420,79 +448,155 @@ namespace FormationManager.UI
         [DataSourceMethod] public void ExecuteToggleHorseArcherRoleFormation6() => ToggleRoleFormation(TroopRole.HorseArcher, 5);
         [DataSourceMethod] public void ExecuteToggleHorseArcherRoleFormation7() => ToggleRoleFormation(TroopRole.HorseArcher, 6);
         [DataSourceMethod] public void ExecuteToggleHorseArcherRoleFormation8() => ToggleRoleFormation(TroopRole.HorseArcher, 7);
+        [DataSourceMethod] public void ExecuteSaveRolePlan() => SaveRolePlan();
+        [DataSourceMethod] public void ExecuteClearRolePlan() => ClearRolePlan();
+        [DataSourceMethod] public void ExecuteRestoreRolePlan() => RestoreRolePlan();
 
         private bool IsPlayerHeroRow => ViewModel?.Character is CharacterObject character &&
                                         character.HeroObject != null && ReferenceEquals(character.HeroObject, Hero.MainHero);
 
-        private static string GetRoleFormationLabel(TroopRole role, int formationIndex)
+        private string GetRoleFormationLabel(TroopRole role, int formationIndex)
             => IsRoleFormationMarked(role, formationIndex) ? "✓" : string.Empty;
 
-        private static bool IsRoleFormationMarked(TroopRole role, int formationIndex)
+        private bool IsRoleFormationMarked(TroopRole role, int formationIndex)
         {
-            int[] assignments = FormationAssignmentStore.GetRoleAssignments(role);
-            if (assignments.Length == 0 || assignments.Length == 8)
-                return false;
-
-            bool isExcludedList = assignments.Length >= 5;
-            return isExcludedList
-                ? !assignments.Contains(formationIndex)
-                : assignments.Contains(formationIndex);
+            int[] assignments = GetDisplayedRoleAssignments(role);
+            return assignments.Contains(formationIndex);
         }
 
-        private static bool IsRoleGridVisible(TroopRole role)
-        {
-            int assignmentCount = FormationAssignmentStore.GetRoleAssignments(role).Length;
-            return assignmentCount != 8;
-        }
+        private bool IsRoleGridVisible(TroopRole role)
+            => GetDisplayedRoleSplitSize(role) > 0;
 
-        private static string GetRoleSplitLabel(TroopRole role)
+        private string GetRoleSplitLabel(TroopRole role)
         {
-            int assignmentCount = FormationAssignmentStore.GetRoleAssignments(role).Length;
-            return assignmentCount == 0 ? "Default" : assignmentCount == 8 ? "All" : $"Split {assignmentCount}";
+            int splitSize = GetDisplayedRoleSplitSize(role);
+            return splitSize == 0 ? "Default" : $"Split {splitSize}";
         }
 
         private void CycleRoleSplit(TroopRole role)
         {
-            int[] current = FormationAssignmentStore.GetRoleAssignments(role);
-            int nextCount = current.Length + 1;
-            if (nextCount > 8)
+            int nextSplitSize = GetDisplayedRoleSplitSize(role) + 1;
+            if (nextSplitSize > 7)
             {
-                FormationAssignmentStore.ClearRoleAssignment(role);
+                SetRolePlanDraft(role, Array.Empty<int>());
+                SetRoleSplitSizeDraft(role, 0);
             }
             else
             {
-                var assignments = current.ToList();
-                foreach (int formationIndex in Enumerable.Range(0, 8))
-                {
-                    if (assignments.Count >= nextCount)
-                        break;
-                    if (!assignments.Contains(formationIndex))
-                        assignments.Add(formationIndex);
-                }
-                FormationAssignmentStore.SetRoleAssignments(role, assignments);
+                var assignments = GetDisplayedRoleAssignments(role).Take(nextSplitSize).ToArray();
+                SetRolePlanDraft(role, assignments);
+                SetRoleSplitSizeDraft(role, nextSplitSize);
             }
 
-            FormationAssignmentStore.Save();
             RefreshRolePlanBindings();
         }
 
         private void ToggleRoleFormation(TroopRole role, int formationIndex)
         {
-            var assignments = FormationAssignmentStore.GetRoleAssignments(role).ToList();
-            if (!assignments.Remove(formationIndex))
+            var assignments = GetDisplayedRoleAssignments(role).ToList();
+            int splitSize = GetDisplayedRoleSplitSize(role);
+            if (splitSize == 0)
+                return;
+
+            if (!assignments.Remove(formationIndex) && assignments.Count < splitSize)
                 assignments.Add(formationIndex);
 
-            FormationAssignmentStore.SetRoleAssignments(role, assignments);
+            SetRolePlanDraft(role, assignments);
+            RefreshRolePlanBindings();
+        }
+
+        private int[] GetDisplayedRoleAssignments(TroopRole role)
+            => _rolePlanDraft.TryGetValue(role, out int[]? assignments)
+                ? assignments
+                : FormationAssignmentStore.GetRoleAssignments(role);
+
+        private int GetDisplayedRoleSplitSize(TroopRole role)
+            => _roleSplitSizeDraft.TryGetValue(role, out int splitSize)
+                ? splitSize
+                : FormationAssignmentStore.GetRoleSplitSize(role);
+
+        private void SetRolePlanDraft(TroopRole role, IEnumerable<int> assignments)
+        {
+            _rolePlanDraft[role] = assignments
+                .Where(FormationPlanNormalizer.IsValidFormationIndex)
+                .Distinct()
+                .OrderBy(index => index)
+                .ToArray();
+            _hasRolePlanDraftChanges = true;
+        }
+
+        private void SetRoleSplitSizeDraft(TroopRole role, int splitSize)
+        {
+            _roleSplitSizeDraft[role] = splitSize;
+            _hasRolePlanDraftChanges = true;
+        }
+
+        private string GetRoleNameColor(TroopRole role)
+            => GetDisplayedRoleSplitSize(role) > 0 &&
+               GetDisplayedRoleAssignments(role).Length != GetDisplayedRoleSplitSize(role)
+                ? "#D05A4FFF"
+                : "#FFFFFFFF";
+
+        private void SaveRolePlan()
+        {
+            if (!_hasRolePlanDraftChanges)
+                return;
+
+            foreach (TroopRole role in RolePlanRoles)
+            {
+                bool hasAssignments = _rolePlanDraft.TryGetValue(role, out int[]? assignments);
+                bool hasSplitSize = _roleSplitSizeDraft.TryGetValue(role, out int splitSize);
+                if (!hasAssignments && !hasSplitSize)
+                    continue;
+
+                int savedSplitSize = hasSplitSize ? splitSize : FormationAssignmentStore.GetRoleSplitSize(role);
+                if (savedSplitSize == 0)
+                {
+                    FormationAssignmentStore.ClearRoleAssignment(role);
+                    continue;
+                }
+
+                FormationAssignmentStore.SetRoleSplitSize(role, savedSplitSize);
+                FormationAssignmentStore.SetRoleAssignments(role, hasAssignments ? assignments! : FormationAssignmentStore.GetRoleAssignments(role));
+            }
+
             FormationAssignmentStore.Save();
+            _rolePlanDraft.Clear();
+            _roleSplitSizeDraft.Clear();
+            _hasRolePlanDraftChanges = false;
+            RefreshRolePlanBindings();
+        }
+
+        private void ClearRolePlan()
+        {
+            _rolePlanDraft.Clear();
+            _roleSplitSizeDraft.Clear();
+            _hasRolePlanDraftChanges = false;
+            FormationAssignmentStore.ClearRoleAssignments();
+            FormationAssignmentStore.Save();
+            RefreshRolePlanBindings();
+        }
+
+        private void RestoreRolePlan()
+        {
+            _rolePlanDraft.Clear();
+            _roleSplitSizeDraft.Clear();
+            _hasRolePlanDraftChanges = false;
+            if (FormationAssignmentStore.RestoreRoleAssignments())
+                FormationAssignmentStore.Save();
             RefreshRolePlanBindings();
         }
 
         private void RefreshRolePlanBindings()
         {
             OnPropertyChanged(nameof(IsRolePlanBadgeVisible));
+            OnPropertyChanged(nameof(HasUnsavedRolePlanChanges));
+            OnPropertyChanged(nameof(HasRolePlan));
+            OnPropertyChanged(nameof(CanRestoreRolePlan));
             foreach (string role in new[] { "LightInfantry", "ShieldInfantry", "ShockInfantry", "PikeInfantry", "Skirmisher", "FootArcher", "Crossbowman", "MeleeCavalry", "HorseArcher" })
             {
                 OnPropertyChanged($"{role}RoleSplitLabel");
+                OnPropertyChanged($"{role}RoleNameColor");
                 OnPropertyChanged($"Is{role}RoleGridVisible");
                 for (int formation = 1; formation <= 8; formation++)
                 {
@@ -865,24 +969,44 @@ namespace FormationManager.UI
         internal static void NotifySelectionChanged(PartyCharacterVM viewModel)
         {
             // Bannerlord only invokes ExecuteSetSelected on the newly selected row,
-            // while it silently clears every other row. Refresh all live mixins so
-            // sibling editor panels follow the same one-open-row rule as vanilla.
+            // while it silently clears every other row. Refresh only the previous
+            // and current rows; refreshing every live troop row was the dominant
+            // cost of opening a role editor.
+            var stopwatch = Stopwatch.StartNew();
+            int refreshedMixins = 0;
             ActiveMixins.RemoveAll(reference => !reference.TryGetTarget(out _));
-            foreach (var reference in ActiveMixins)
+            if (LastSelectedMixin?.TryGetTarget(out var previous) == true &&
+                previous.ViewModel != null && Instances.TryGetValue(previous.ViewModel, out var previousMixin))
             {
-                if (reference.TryGetTarget(out var mixin))
-                    mixin.HandleSelectionChanged();
+                previousMixin.HandleSelectionChanged();
+                refreshedMixins++;
             }
+            if (Instances.TryGetValue(viewModel, out var currentMixin))
+            {
+                currentMixin.HandleSelectionChanged();
+                refreshedMixins++;
+                LastSelectedMixin = new WeakReference<PartyCharacterVMMixin>(currentMixin);
+            }
+            stopwatch.Stop();
+            FormationManager.Data.Logger.Log($"[PartySelectionTiming] row={viewModel.Character?.StringId ?? "unknown"} mixins={refreshedMixins} roleEditorEnabled={RolePlanEditorEnabled} handlerMs={stopwatch.Elapsed.TotalMilliseconds:F2}");
         }
 
         private void HandleSelectionChanged()
         {
-            if (!(ViewModel?.IsSelected ?? false))
+            bool isSelected = ViewModel?.IsSelected ?? false;
+            if (_lastKnownSelected == isSelected)
+                return;
+
+            _lastKnownSelected = isSelected;
+            if (!isSelected)
                 _selectedCustomFormationIndex = -1;
             OnPropertyChanged(nameof(IsFormationEditorVisible));
             OnPropertyChanged(nameof(IsFormationEditorSliderVisible));
-            OnPropertyChanged(nameof(IsRolePlanEditorVisible));
-            RefreshRolePlanBindings();
+            if (RolePlanEditorEnabled && IsPlayerHeroRow)
+            {
+                OnPropertyChanged(nameof(IsRolePlanEditorVisible));
+                RefreshRolePlanBindings();
+            }
             NotifyEditorSelectionChanged();
         }
 
@@ -896,6 +1020,8 @@ namespace FormationManager.UI
                 Instances.Remove(ViewModel);
             }
             ActiveMixins.RemoveAll(reference => !reference.TryGetTarget(out var mixin) || ReferenceEquals(mixin, this));
+            if (LastSelectedMixin?.TryGetTarget(out var selected) == true && ReferenceEquals(selected, this))
+                LastSelectedMixin = null;
         }
     }
 }

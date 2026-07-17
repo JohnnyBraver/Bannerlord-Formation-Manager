@@ -22,6 +22,7 @@ namespace FormationManager.Data
         private static Dictionary<string, TroopDeploymentPlan> _archivedDeploymentPlans = new();
         private static Dictionary<string, TroopDeploymentPlan> _pausedDeploymentPlans = new();
         private static Dictionary<string, RoleAssignment> _roleAssignments = new();
+        private static Dictionary<string, RoleAssignment> _archivedRoleAssignments = new();
         private static bool _isDirty;
 
         private static string GetConfigDir()
@@ -43,6 +44,7 @@ namespace FormationManager.Data
             _archivedDeploymentPlans = new Dictionary<string, TroopDeploymentPlan>();
             _pausedDeploymentPlans = new Dictionary<string, TroopDeploymentPlan>();
             _roleAssignments = new Dictionary<string, RoleAssignment>();
+            _archivedRoleAssignments = new Dictionary<string, RoleAssignment>();
             _isDirty = false;
 
             string path = GetFilePath(heroId);
@@ -65,6 +67,8 @@ namespace FormationManager.Data
                     _pausedDeploymentPlans = data.PausedDeploymentPlans;
                 if (data?.RoleAssignments != null)
                     _roleAssignments = data.RoleAssignments;
+                if (data?.ArchivedRoleAssignments != null)
+                    _archivedRoleAssignments = data.ArchivedRoleAssignments;
             }
             catch (Exception ex)
             {
@@ -94,7 +98,8 @@ namespace FormationManager.Data
                     DeploymentPlans = _deploymentPlans,
                     ArchivedDeploymentPlans = _archivedDeploymentPlans,
                     PausedDeploymentPlans = _pausedDeploymentPlans,
-                    RoleAssignments = _roleAssignments
+                    RoleAssignments = _roleAssignments,
+                    ArchivedRoleAssignments = _archivedRoleAssignments
                 };
                 string json = JsonConvert.SerializeObject(model, Formatting.Indented);
                 File.WriteAllText(GetFilePath(_currentHeroId), json);
@@ -211,6 +216,58 @@ namespace FormationManager.Data
         public static bool HasAnyRoleAssignments => _roleAssignments.Keys.Any(key =>
             Enum.TryParse(key, out TroopRole role) && GetRoleAssignments(role).Length > 0);
 
+        /// <summary>
+        /// The selected split size is persisted independently from the matrix
+        /// marks, allowing the party screen to flag an incomplete selection.
+        /// Older saves infer it from their existing selected formations.
+        /// </summary>
+        public static int GetRoleSplitSize(TroopRole role)
+        {
+            if (!_roleAssignments.TryGetValue(role.ToString(), out var assignment))
+                return 0;
+
+            if (assignment.SplitSize >= 1 && assignment.SplitSize <= 7)
+                return assignment.SplitSize;
+
+            return GetRoleAssignments(role).Length;
+        }
+
+        public static void SetRoleSplitSize(TroopRole role, int splitSize)
+        {
+            if (splitSize < 1 || splitSize > 7)
+            {
+                ClearRoleAssignment(role);
+                return;
+            }
+
+            GetOrCreateRoleAssignment(role).SplitSize = splitSize;
+            _isDirty = true;
+        }
+
+        public static bool CanRestoreRoleAssignments => !HasAnyRoleAssignments && _archivedRoleAssignments.Count > 0;
+
+        /// <summary>Archives the saved role plan so it can be restored from the party screen.</summary>
+        public static void ClearRoleAssignments()
+        {
+            if (_roleAssignments.Count == 0)
+                return;
+
+            _archivedRoleAssignments = CloneRoleAssignments(_roleAssignments);
+            _roleAssignments.Clear();
+            _isDirty = true;
+        }
+
+        public static bool RestoreRoleAssignments()
+        {
+            if (!CanRestoreRoleAssignments)
+                return false;
+
+            _roleAssignments = CloneRoleAssignments(_archivedRoleAssignments);
+            _archivedRoleAssignments.Clear();
+            _isDirty = true;
+            return true;
+        }
+
         public static void SetRoleAssignment(TroopRole role, int formationIndex)
         {
             if (!FormationPlanNormalizer.IsValidFormationIndex(formationIndex))
@@ -248,7 +305,17 @@ namespace FormationManager.Data
 
             if (normalized.Length == 0)
             {
-                ClearRoleAssignment(role);
+                if (_roleAssignments.TryGetValue(role.ToString(), out var existing) && existing.SplitSize >= 1)
+                {
+                    existing.PrimaryFormation = -1;
+                    existing.SecondaryFormation = -1;
+                    existing.FormationIndices = null;
+                    _isDirty = true;
+                }
+                else
+                {
+                    ClearRoleAssignment(role);
+                }
                 return;
             }
 
@@ -284,6 +351,17 @@ namespace FormationManager.Data
             }
             return assignment;
         }
+
+        private static Dictionary<string, RoleAssignment> CloneRoleAssignments(Dictionary<string, RoleAssignment> source)
+            => source.ToDictionary(
+                pair => pair.Key,
+                pair => new RoleAssignment
+                {
+                    PrimaryFormation = pair.Value.PrimaryFormation,
+                    SecondaryFormation = pair.Value.SecondaryFormation,
+                    FormationIndices = pair.Value.FormationIndices?.ToList(),
+                    SplitSize = pair.Value.SplitSize
+                });
 
         public static bool TryGetDeploymentPlan(string troopId, out TroopDeploymentPlan? plan)
         {
@@ -411,6 +489,7 @@ namespace FormationManager.Data
             public Dictionary<string, TroopDeploymentPlan> ArchivedDeploymentPlans { get; set; } = new();
             public Dictionary<string, TroopDeploymentPlan> PausedDeploymentPlans { get; set; } = new();
             public Dictionary<string, RoleAssignment> RoleAssignments { get; set; } = new();
+            public Dictionary<string, RoleAssignment> ArchivedRoleAssignments { get; set; } = new();
         }
 
         public class RoleAssignment
@@ -418,6 +497,7 @@ namespace FormationManager.Data
             public int PrimaryFormation { get; set; } = -1;
             public int SecondaryFormation { get; set; } = -1;
             public List<int>? FormationIndices { get; set; }
+            public int SplitSize { get; set; }
         }
     }
 
