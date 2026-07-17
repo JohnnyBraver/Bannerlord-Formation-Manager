@@ -216,31 +216,21 @@ namespace FormationManager.Data
         public static bool HasAnyRoleAssignments => _roleAssignments.Keys.Any(key =>
             Enum.TryParse(key, out TroopRole role) && GetRoleAssignments(role).Length > 0);
 
-        /// <summary>
-        /// The selected split size is persisted independently from the matrix
-        /// marks, allowing the party screen to flag an incomplete selection.
-        /// Older saves infer it from their existing selected formations.
-        /// </summary>
-        public static int GetRoleSplitSize(TroopRole role)
+        public static bool GetRoleSplitEnabled(TroopRole role)
         {
             if (!_roleAssignments.TryGetValue(role.ToString(), out var assignment))
-                return 0;
+                return false;
 
-            if (assignment.SplitSize >= 1 && assignment.SplitSize <= 7)
-                return assignment.SplitSize;
+            if (assignment.SplitEnabled)
+                return true;
 
-            return GetRoleAssignments(role).Length;
+            // Migrate older role plans that only persisted selected formations.
+            return assignment.SplitSize > 0 || GetRoleAssignments(role).Length > 0;
         }
 
-        public static void SetRoleSplitSize(TroopRole role, int splitSize)
+        public static void SetRoleSplitEnabled(TroopRole role, bool enabled)
         {
-            if (splitSize < 1 || splitSize > 7)
-            {
-                ClearRoleAssignment(role);
-                return;
-            }
-
-            GetOrCreateRoleAssignment(role).SplitSize = splitSize;
+            GetOrCreateRoleAssignment(role).SplitEnabled = enabled;
             _isDirty = true;
         }
 
@@ -305,7 +295,8 @@ namespace FormationManager.Data
 
             if (normalized.Length == 0)
             {
-                if (_roleAssignments.TryGetValue(role.ToString(), out var existing) && existing.SplitSize >= 1)
+                if (_roleAssignments.TryGetValue(role.ToString(), out var existing) &&
+                    (existing.SplitEnabled || existing.SplitSize > 0))
                 {
                     existing.PrimaryFormation = -1;
                     existing.SecondaryFormation = -1;
@@ -360,7 +351,8 @@ namespace FormationManager.Data
                     PrimaryFormation = pair.Value.PrimaryFormation,
                     SecondaryFormation = pair.Value.SecondaryFormation,
                     FormationIndices = pair.Value.FormationIndices?.ToList(),
-                    SplitSize = pair.Value.SplitSize
+                    SplitSize = pair.Value.SplitSize,
+                    SplitEnabled = pair.Value.SplitEnabled
                 });
 
         public static bool TryGetDeploymentPlan(string troopId, out TroopDeploymentPlan? plan)
@@ -498,6 +490,7 @@ namespace FormationManager.Data
             public int SecondaryFormation { get; set; } = -1;
             public List<int>? FormationIndices { get; set; }
             public int SplitSize { get; set; }
+            public bool SplitEnabled { get; set; }
         }
     }
 

@@ -1,5 +1,14 @@
 # Changelog - Formation Manager
 
+## [v0.5.2] - 2026-07-17
+
+### Added
+- **Default/Split Role Assignments**: Role defaults can now be switched into split mode and assigned to any selected combination of formations, with troops divided evenly across those formations.
+- **Role Plan Save, Clear, and Restore**: Role-based split plans now use the same draft and recovery workflow as advanced formation plans.
+
+### Changed
+- **Party Selection Performance**: Selection refreshes now update only the previous and current troop rows, with role-plan bindings refreshed only for the hero row.
+
 ## [v0.5.1] - 2026-07-14
 
 ### Changed
