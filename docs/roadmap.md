@@ -12,6 +12,18 @@ levels, without requiring every player to use the more complex ones:
 3. **Expert loadout rules:** optionally assign individual deployment agents
    according to their actual weapons and equipment rolls.
 
+## Formation banner assignments
+
+Allow a player to choose a banner for each formation independently of its
+captain. The selected banner should be saved with the formation plan and
+reapplied during Order of Battle/mission setup, so Bannerlord can select an
+eligible ordinary troop as the banner bearer.
+
+This must use only valid banner items and should provide an explicit "no
+banner" choice. It must not require a captain or change that captain's
+equipment; captain-equipped banners should remain compatible with the native
+behaviour when no explicit formation banner is selected.
+
 ## Per-agent loadout formation rules
 
 The expert layer would be a separate opt-in advanced rules section for players
