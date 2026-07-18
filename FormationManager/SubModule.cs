@@ -10,6 +10,7 @@ using System.Linq;
 
 namespace FormationManager
 {
+    // TODO: Update to support the troop classifier
     public class SubModule : MBSubModuleBase
     {
         private static Harmony? _harmony;
